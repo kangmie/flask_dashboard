@@ -84,7 +84,7 @@
     </div>
 </div>
 
-<!-- Daily Pattern Analysis -->
+<!-- Daily and Monthly Pattern Analysis -->
 <div class="row mb-4">
     <div class="col-lg-6">
         <div class="chart-card">
@@ -99,42 +99,15 @@
     <div class="col-lg-6">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">📦 Distribusi Penjualan Harian per Cabang</h5>
+                <h5 class="chart-title">📅 Trend Penjualan Bulanan</h5>
+                <small class="text-muted">Berdasarkan periode data aktual</small>
             </div>
             <div class="chart-body">
-                <div id="daily-branch-chart"></div>
+                <div id="monthly-trend-chart"></div>
             </div>
         </div>
     </div>
 </div>
-
-<!-- Weekly and Monthly Trends -->
-{% if time_data.weekly is defined and not time_data.weekly.empty %}
-<div class="row mb-4">
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📊 Tren Penjualan Mingguan per Cabang</h5>
-            </div>
-            <div class="chart-body">
-                <div id="weekly-trend-chart"></div>
-            </div>
-        </div>
-    </div>
-    {% if time_data.monthly is defined and not time_data.monthly.empty %}
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📅 Perbandingan Penjualan Bulanan</h5>
-            </div>
-            <div class="chart-body">
-                <div id="monthly-comparison-chart"></div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
 
 <!-- Peak Hours Analysis -->
 {% if time_data.hourly is defined and not time_data.hourly.empty %}
@@ -265,8 +238,8 @@
                         {% if peak_hours|length > 0 %}
                         <li>Peak hours consistency: {{ 'High' if peak_hours['Hour'].nunique() <= 3 else 'Medium' if peak_hours['Hour'].nunique() <= 6 else 'Low' }}</li>
                         {% endif %}
-                        <li>Weekend vs Weekday pattern analysis needed</li>
-                        <li>Seasonal adjustments may be required</li>
+                        <li>Monthly trends show seasonal patterns</li>
+                        <li>Operational adjustments may be required</li>
                     </ul>
                 </div>
             </div>
@@ -299,7 +272,7 @@
                         <li>Fokus promosi pada hari {{ best_day }}</li>
                         {% endif %}
                         <li>Happy hour campaigns untuk jam sepi</li>
-                        <li>Weekend special programs</li>
+                        <li>Monthly promotions berdasarkan trend</li>
                         <li>Lunch/dinner time optimization</li>
                     </ul>
                 </div>
@@ -310,7 +283,7 @@
                         <li>Synchronize inventory delivery dengan peak hours</li>
                         <li>Maintenance scheduling pada jam sepi</li>
                         <li>Kitchen prep timing optimization</li>
-                        <li>Table turnover rate improvement</li>
+                        <li>Monthly capacity planning</li>
                     </ul>
                 </div>
                 
@@ -318,9 +291,9 @@
                     <h6><i class="fas fa-chart-bar me-2"></i>Performance Monitoring</h6>
                     <ul class="mb-0">
                         <li>Track hourly sales targets</li>
-                        <li>Monitor branch consistency</li>
-                        <li>Weekly pattern analysis</li>
-                        <li>Seasonal trend adjustments</li>
+                        <li>Monitor monthly consistency</li>
+                        <li>Seasonal trend analysis</li>
+                        <li>Branch pattern standardization</li>
                     </ul>
                 </div>
             </div>
@@ -416,6 +389,12 @@
 <style>
     .metric-card {
         transition: transform 0.2s ease;
+        border-radius: 12px;
+        padding: 25px;
+        color: white;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        position: relative;
+        overflow: hidden;
     }
     
     .metric-card:hover {
@@ -443,6 +422,40 @@
     .alert h6 {
         margin-bottom: 10px;
         font-weight: 600;
+    }
+    
+    .chart-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        margin-bottom: 30px;
+        overflow: hidden;
+        border: 1px solid #e9ecef;
+    }
+    
+    .chart-header {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 20px 25px;
+        border-bottom: 2px solid var(--primary-color, #005A5B);
+    }
+    
+    .chart-title {
+        margin: 0;
+        color: var(--primary-color, #005A5B);
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    
+    .status-excellent { background: #32CD32; }
+    .status-good { background: #20B2AA; }
+    .status-fair { background: #FF8C00; }
+    .status-poor { background: #DC143C; }
+    
+    .badge {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 500;
+        font-size: 0.8rem;
     }
 </style>
 {% endblock %}
@@ -503,127 +516,19 @@ function initializeTimeCharts() {
             displayModeBar: false
         });
         {% endif %}
-    {% endif %}
-    
-    // Weekly Trend (if available)
-    {% if time_data.weekly is defined and not time_data.weekly.empty %}
-    const weeklyData = {{ time_data.weekly.to_dict('records') | safe }};
-    createWeeklyTrendChart(weeklyData);
-    {% endif %}
-    
-    // Monthly Comparison (if available)
-    {% if time_data.monthly is defined and not time_data.monthly.empty %}
-    const monthlyData = {{ time_data.monthly.to_dict('records') | safe }};
-    createMonthlyComparisonChart(monthlyData);
+        
+        // Monthly Trend - CHART BARU BERDASARKAN DATA AKTUAL
+        {% if charts.monthly_trend %}
+        const monthlyTrendData = {{ charts.monthly_trend | safe }};
+        Plotly.newPlot('monthly-trend-chart', monthlyTrendData.data, monthlyTrendData.layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+        {% endif %}
     {% endif %}
     
     // Peak Hours Distribution
     createPeakHoursDistributionChart();
-    
-    // Daily Branch Chart
-    createDailyBranchChart();
-}
-
-function createWeeklyTrendChart(weeklyData) {
-    if (!weeklyData || weeklyData.length === 0) return;
-    
-    const branches = [...new Set(weeklyData.map(item => item.Branch))];
-    const traces = branches.map(branch => {
-        const branchData = weeklyData.filter(item => item.Branch === branch);
-        return {
-            x: branchData.map(item => item.Week),
-            y: branchData.map(item => item.Total),
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: branch,
-            line: { width: 2 }
-        };
-    });
-    
-    const layout = {
-        title: 'Tren Penjualan Mingguan per Cabang',
-        xaxis: { title: 'Minggu' },
-        yaxis: { title: 'Revenue (Rp)', tickformat: ',.0f' },
-        height: 400,
-        margin: { t: 50, l: 60, r: 20, b: 50 }
-    };
-    
-    Plotly.newPlot('weekly-trend-chart', traces, layout, {
-        responsive: true,
-        displayModeBar: false
-    });
-}
-
-function createMonthlyComparisonChart(monthlyData) {
-    if (!monthlyData || monthlyData.length === 0) return;
-    
-    const branches = [...new Set(monthlyData.map(item => item.Branch))];
-    const months = [...new Set(monthlyData.map(item => item.Month))].sort();
-    
-    const traces = branches.map(branch => {
-        const branchData = monthlyData.filter(item => item.Branch === branch);
-        return {
-            x: months,
-            y: months.map(month => {
-                const monthData = branchData.find(item => item.Month === month);
-                return monthData ? monthData.Total : 0;
-            }),
-            type: 'bar',
-            name: branch
-        };
-    });
-    
-    const layout = {
-        title: 'Perbandingan Penjualan Bulanan',
-        xaxis: { title: 'Bulan' },
-        yaxis: { title: 'Revenue (Rp)', tickformat: ',.0f' },
-        barmode: 'group',
-        height: 400,
-        margin: { t: 50, l: 60, r: 20, b: 50 }
-    };
-    
-    Plotly.newPlot('monthly-comparison-chart', traces, layout, {
-        responsive: true,
-        displayModeBar: false
-    });
-}
-
-function createDailyBranchChart() {
-    {% if time_data.daily_pattern is defined and not time_data.daily_pattern.empty %}
-    const dailyData = {{ time_data.daily_pattern.to_dict('records') | safe }};
-    
-    if (dailyData && dailyData.length > 0) {
-        const branches = [...new Set(dailyData.map(item => item.Branch))];
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-        
-        const traces = branches.map(branch => {
-            const branchData = dailyData.filter(item => item.Branch === branch);
-            return {
-                x: days,
-                y: days.map(day => {
-                    const dayData = branchData.find(item => item.Day_of_Week === day);
-                    return dayData ? dayData.Total_Revenue : 0;
-                }),
-                type: 'bar',
-                name: branch
-            };
-        });
-        
-        const layout = {
-            title: 'Distribusi Penjualan Harian per Cabang',
-            xaxis: { title: 'Hari' },
-            yaxis: { title: 'Revenue (Rp)', tickformat: ',.0f' },
-            barmode: 'group',
-            height: 400,
-            margin: { t: 50, l: 60, r: 20, b: 50 }
-        };
-        
-        Plotly.newPlot('daily-branch-chart', traces, layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    }
-    {% endif %}
 }
 
 function createPeakHoursDistributionChart() {

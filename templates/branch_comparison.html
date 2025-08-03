@@ -50,12 +50,13 @@
     </div>
 </div>
 
-<!-- Charts Row 1 -->
+<!-- Charts Row 1 - PERBAIKI: Konsisten dengan dashboard -->
 <div class="row mb-4">
     <div class="col-lg-8">
         <div class="chart-card">
             <div class="chart-header">
                 <h5 class="chart-title">💰 Total Revenue per Cabang</h5>
+                <small class="text-muted">Data yang sama dengan dashboard overview</small>
             </div>
             <div class="chart-body">
                 <div id="revenue-comparison-chart"></div>
@@ -65,27 +66,34 @@
     <div class="col-lg-4">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">📊 Top 5 vs Bottom 5</h5>
+                <h5 class="chart-title">📊 Revenue Summary</h5>
             </div>
             <div class="chart-body">
                 <div class="row">
                     <div class="col-12">
                         <h6 class="text-success">🏆 Top 5 Performers</h6>
-                        {% for _, branch in branch_data.head(5).iterrows() %}
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong></span>
-                            <span class="badge status-excellent">{{ branch.Total_Revenue | currency }}</span>
-                        </div>
+                        {% for i in range(5) %}
+                            {% if i < branch_data|length %}
+                                {% set branch = branch_data.iloc[i] %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong></span>
+                                    <span class="badge status-excellent">{{ branch.Total_Revenue | currency }}</span>
+                                </div>
+                            {% endif %}
                         {% endfor %}
                         
                         <hr class="my-3">
                         
                         <h6 class="text-warning">⚠️ Bottom 5 (Need Attention)</h6>
-                        {% for _, branch in branch_data.tail(5).iterrows() %}
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong></span>
-                            <span class="badge status-fair">{{ branch.Total_Revenue | currency }}</span>
-                        </div>
+                        {% for i in range(5) %}
+                            {% set idx = branch_data|length - 5 + i %}
+                            {% if idx >= 0 and idx < branch_data|length %}
+                                {% set branch = branch_data.iloc[idx] %}
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong></span>
+                                    <span class="badge status-fair">{{ branch.Total_Revenue | currency }}</span>
+                                </div>
+                            {% endif %}
                         {% endfor %}
                     </div>
                 </div>
@@ -304,32 +312,57 @@
         margin-bottom: 10px;
         font-weight: 600;
     }
+    
+    .chart-card {
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+    }
+    
+    .chart-header {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+        padding: 20px 25px;
+        border-bottom: 2px solid var(--primary-color, #005A5B);
+    }
+    
+    .chart-title {
+        margin: 0;
+        color: var(--primary-color, #005A5B);
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Revenue Comparison Chart
+    // Revenue Comparison Chart - SAMA PERSIS DENGAN DASHBOARD
+    {% if charts and charts.revenue_comparison %}
     const revenueComparisonData = {{ charts.revenue_comparison | safe }};
     Plotly.newPlot('revenue-comparison-chart', revenueComparisonData.data, revenueComparisonData.layout, {
         responsive: true,
         displayModeBar: false
     });
+    {% endif %}
     
     // Margin vs COGS Chart
+    {% if charts and charts.margin_cogs %}
     const marginCogsData = {{ charts.margin_cogs | safe }};
     Plotly.newPlot('margin-cogs-chart', marginCogsData.data, marginCogsData.layout, {
         responsive: true,
         displayModeBar: false
     });
+    {% endif %}
     
     // Efficiency Chart
+    {% if charts and charts.efficiency %}
     const efficiencyData = {{ charts.efficiency | safe }};
     Plotly.newPlot('efficiency-chart', efficiencyData.data, efficiencyData.layout, {
         responsive: true,
         displayModeBar: false
     });
+    {% endif %}
     
     // Make table sortable
     $('#branchTable').DataTable({

@@ -1,0 +1,647 @@
+{% extends "base.html" %}
+
+{% block title %}Analisis Produk - Multi-Branch Analytics{% endblock %}
+
+{% block content %}
+<h1>📦 Analisis Produk Multi-Cabang</h1>
+
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5>Total Produk</h5>
+                        <h3>{{ product_data['Menu'].nunique() if product_data is not none and not product_data.empty else 0 }}</h3>
+                    </div>
+                    <div>
+                        <i class="fas fa-boxes fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-warning text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5>Total Revenue</h5>
+                        <h3>{{ (top_products['Total'].sum() / 1000000) | round(1) if top_products is not none and not top_products.empty else 0 }}M</h3>
+                    </div>
+                    <div>
+                        <i class="fas fa-chart-line fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-success text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5>Avg Margin %</h5>
+                        <h3>{{ top_products['Margin_Percentage'].mean() | round(1) if top_products is not none and not top_products.empty else 0 }}%</h3>
+                    </div>
+                    <div>
+                        <i class="fas fa-percentage fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card bg-info text-white">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h5>Cabang Analyzed</h5>
+                        <h3>{{ product_data['Branch'].nunique() if product_data is not none and not product_data.empty else 0 }}</h3>
+                    </div>
+                    <div>
+                        <i class="fas fa-building fa-2x"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product Performance Charts -->
+{% if charts %}
+<div class="row mb-4">
+    {% if charts.product_heatmap %}
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>🔥 Heatmap Revenue Produk per Cabang</h5>
+            </div>
+            <div class="card-body">
+                <div id="product-heatmap-chart"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>🏆 Top 5 Best Performers</h5>
+            </div>
+            <div class="card-body">
+                {% if top_products is not none and not top_products.empty %}
+                    {% for i in range(5) %}
+                        {% if i < top_products|length %}
+                            {% set product = top_products.iloc[i] %}
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <span class="badge bg-success">#{{ i + 1 }}</span>
+                                    <strong class="ms-2">{{ product.Menu[:25] }}{% if product.Menu|length > 25 %}...{% endif %}</strong>
+                                    <br>
+                                    <small class="text-muted ms-4">Qty: {{ product.Qty | number }} | Margin: {{ product.Margin_Percentage | round(1) }}%</small>
+                                </div>
+                                <div class="text-end">
+                                    <div class="fw-bold">{{ product.Total | currency }}</div>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No product data available</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Top Products Charts -->
+<div class="row mb-4">
+    {% if charts.top_revenue %}
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>💰 Top 15 Produk by Revenue</h5>
+            </div>
+            <div class="card-body">
+                <div id="top-revenue-chart"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    {% if charts.top_quantity %}
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5>📦 Top 15 Produk by Quantity</h5>
+            </div>
+            <div class="card-body">
+                <div id="top-quantity-chart"></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Product Analysis by Branch -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5>🔍 Analisis Produk Spesifik per Cabang</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="productSelect" class="form-label">Pilih Produk untuk Analisis Detail:</label>
+                        <select id="productSelect" class="form-select">
+                            <option value="">-- Pilih Produk --</option>
+                            {% if product_data is not none and not product_data.empty %}
+                                {% for product in product_data['Menu'].unique() %}
+                                <option value="{{ product }}">{{ product }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Filter Cabang:</label>
+                        <select id="branchFilter" class="form-select">
+                            <option value="">Semua Cabang</option>
+                            {% if product_data is not none and not product_data.empty %}
+                                {% for branch in product_data['Branch'].unique() %}
+                                <option value="{{ branch }}">{{ branch }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="product-detail-analysis" style="display: none;">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h5 id="total-revenue-product">-</h5>
+                                    <small>Total Revenue</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h5 id="total-qty-product">-</h5>
+                                    <small>Total Quantity</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-warning text-white">
+                                <div class="card-body text-center">
+                                    <h5 id="avg-margin-product">-</h5>
+                                    <small>Avg Margin %</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body text-center">
+                                    <h5 id="branches-available">-</h5>
+                                    <small>Branches Available</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="product-comparison-chart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5>💡 Product Insights</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-chart-pie me-2"></i>Product Distribution</h6>
+                    <ul class="mb-0">
+                        <li><strong>Total Products:</strong> {{ product_data['Menu'].nunique() if product_data is not none and not product_data.empty else 0 }}</li>
+                        <li><strong>Total Branches:</strong> {{ product_data['Branch'].nunique() if product_data is not none and not product_data.empty else 0 }}</li>
+                        <li><strong>Avg Products per Branch:</strong> {{ (product_data.groupby('Branch')['Menu'].nunique().mean()) | round(0) if product_data is not none and not product_data.empty else 0 }}</li>
+                    </ul>
+                </div>
+                
+                {% if product_data is not none and not product_data.empty %}
+                    {% set product_consistency = product_data.groupby('Menu')['Branch'].nunique() %}
+                    {% set universal_products = (product_consistency == product_data['Branch'].nunique()).sum() %}
+                    {% set limited_products = (product_consistency < (product_data['Branch'].nunique() / 2)).sum() %}
+                    
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle me-2"></i>Product Consistency</h6>
+                        <ul class="mb-0">
+                            <li><strong>Universal Products:</strong> {{ universal_products }} (available in all branches)</li>
+                            <li><strong>Limited Products:</strong> {{ limited_products }} (< 50% branches)</li>
+                            <li><strong>Avg Availability:</strong> {{ (product_consistency.mean() / product_data['Branch'].nunique() * 100) | round(1) }}%</li>
+                        </ul>
+                    </div>
+                {% endif %}
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Optimization Opportunities</h6>
+                    <ul class="mb-0">
+                        <li>Standardize popular products across all branches</li>
+                        <li>Remove underperforming products</li>
+                        <li>Cross-sell high-margin items</li>
+                        <li>Optimize pricing strategy</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-lightbulb me-2"></i>Recommendations</h6>
+                    <ol class="mb-0 small">
+                        <li>Focus on top 20% products (80/20 rule)</li>
+                        <li>Improve marketing for high-margin items</li>
+                        <li>Standardize successful products</li>
+                        <li>Review pricing of low-margin products</li>
+                        <li>Implement upselling strategies</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product Performance Ranking Table -->
+{% if top_products is not none and not top_products.empty %}
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>📋 Ranking Performa Produk Detail</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped" id="productTable">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Produk</th>
+                                <th>Total Revenue</th>
+                                <th>Total Quantity</th>
+                                <th>Total Margin</th>
+                                <th>Margin %</th>
+                                <th>Avg Price</th>
+                                <th>Branches Available</th>
+                                <th>Revenue per Branch</th>
+                                <th>Performance Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i in range(top_products|length) %}
+                                {% set product = top_products.iloc[i] %}
+                                {% set product_branches = product_data[product_data['Menu'] == product.Menu]['Branch'].nunique() if product_data is not none and not product_data.empty else 0 %}
+                                {% set avg_price = product.Total / product.Qty if product.Qty > 0 else 0 %}
+                                {% set revenue_per_branch = product.Total / product_branches if product_branches > 0 else 0 %}
+                                <tr>
+                                    <td>
+                                        {% if i < 5 %}
+                                            <span class="badge bg-success">#{{ i + 1 }}</span>
+                                        {% elif i < 10 %}
+                                            <span class="badge bg-info">#{{ i + 1 }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">#{{ i + 1 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ product.Menu[:30] }}{% if product.Menu|length > 30 %}...{% endif %}</strong>
+                                    </td>
+                                    <td>
+                                        <strong>{{ product.Total | currency }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ ((product.Total / top_products['Total'].sum()) * 100) | round(1) }}% of total
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <strong>{{ product.Qty | number }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {{ ((product.Qty / top_products['Qty'].sum()) * 100) | round(1) }}% of total
+                                        </small>
+                                    </td>
+                                    <td>{{ product.Margin | currency }}</td>
+                                    <td>
+                                        {% if product.Margin_Percentage > 30 %}
+                                            <span class="badge bg-success">{{ product.Margin_Percentage | percentage }}</span>
+                                        {% elif product.Margin_Percentage > 20 %}
+                                            <span class="badge bg-info">{{ product.Margin_Percentage | percentage }}</span>
+                                        {% elif product.Margin_Percentage > 10 %}
+                                            <span class="badge bg-warning">{{ product.Margin_Percentage | percentage }}</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">{{ product.Margin_Percentage | percentage }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ avg_price | currency }}</td>
+                                    <td>
+                                        {% set total_branches = product_data['Branch'].nunique() if product_data is not none and not product_data.empty else 1 %}
+                                        {% if product_branches == total_branches %}
+                                            <span class="badge bg-success">{{ product_branches }} / {{ total_branches }}</span>
+                                        {% elif product_branches >= (total_branches * 0.75) %}
+                                            <span class="badge bg-info">{{ product_branches }} / {{ total_branches }}</span>
+                                        {% else %}
+                                            <span class="badge bg-warning">{{ product_branches }} / {{ total_branches }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ revenue_per_branch | currency }}</td>
+                                    <td>
+                                        {% if i < 5 and product.Margin_Percentage > 20 %}
+                                            <span class="badge bg-success">Star Product</span>
+                                        {% elif i < 10 and product.Margin_Percentage > 15 %}
+                                            <span class="badge bg-info">Good Performer</span>
+                                        {% elif product.Margin_Percentage > 10 %}
+                                            <span class="badge bg-warning">Average</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Needs Review</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    #product-detail-analysis {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .table td, .table th {
+        vertical-align: middle;
+    }
+    
+    .alert {
+        border-radius: 8px;
+        border: none;
+    }
+    
+    .alert h6 {
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+    
+    .card {
+        border-radius: 12px;
+        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
+        border: 1px solid #e9ecef;
+    }
+    
+    .card-header {
+        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
+        border-bottom: 2px solid #005A5B;
+        font-weight: 600;
+        color: #005A5B;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    initializeProductCharts();
+    
+    // Initialize product analysis
+    initializeProductAnalysis();
+    
+    // Initialize DataTable
+    const productTable = document.getElementById('productTable');
+    if (productTable) {
+        $('#productTable').DataTable({
+            "pageLength": 20,
+            "order": [[ 0, "asc" ]],
+            "columnDefs": [
+                { "orderable": false, "targets": [9] }
+            ],
+            "language": {
+                "search": "Cari produk:",
+                "lengthMenu": "Tampilkan _MENU_ produk per halaman",
+                "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ produk",
+                "paginate": {
+                    "first": "Pertama",
+                    "last": "Terakhir",
+                    "next": "Selanjutnya",
+                    "previous": "Sebelumnya"
+                }
+            }
+        });
+    }
+});
+
+function initializeProductCharts() {
+    // Product Heatmap
+    {% if charts and charts.product_heatmap %}
+    try {
+        const productHeatmapData = {{ charts.product_heatmap | safe }};
+        Plotly.newPlot('product-heatmap-chart', productHeatmapData.data, productHeatmapData.layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+    } catch (error) {
+        console.error('Error loading product heatmap:', error);
+    }
+    {% endif %}
+    
+    // Top Revenue Chart
+    {% if charts and charts.top_revenue %}
+    try {
+        const topRevenueData = {{ charts.top_revenue | safe }};
+        Plotly.newPlot('top-revenue-chart', topRevenueData.data, topRevenueData.layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+    } catch (error) {
+        console.error('Error loading top revenue chart:', error);
+    }
+    {% endif %}
+    
+    // Top Quantity Chart
+    {% if charts and charts.top_quantity %}
+    try {
+        const topQuantityData = {{ charts.top_quantity | safe }};
+        Plotly.newPlot('top-quantity-chart', topQuantityData.data, topQuantityData.layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+    } catch (error) {
+        console.error('Error loading top quantity chart:', error);
+    }
+    {% endif %}
+}
+
+function initializeProductAnalysis() {
+    const productSelect = document.getElementById('productSelect');
+    const branchFilter = document.getElementById('branchFilter');
+    const detailAnalysis = document.getElementById('product-detail-analysis');
+    
+    if (!productSelect || !branchFilter || !detailAnalysis) {
+        console.log('Product analysis elements not found, skipping initialization');
+        return;
+    }
+    
+    // Product data for analysis
+    {% if product_data is not none and not product_data.empty %}
+    const productData = {{ product_data.to_dict('records') | safe }};
+    {% else %}
+    const productData = [];
+    {% endif %}
+    
+    productSelect.addEventListener('change', function() {
+        const selectedProduct = this.value;
+        if (selectedProduct && productData.length > 0) {
+            showProductDetails(selectedProduct, productData);
+            detailAnalysis.style.display = 'block';
+        } else {
+            detailAnalysis.style.display = 'none';
+        }
+    });
+    
+    branchFilter.addEventListener('change', function() {
+        const selectedProduct = productSelect.value;
+        if (selectedProduct && productData.length > 0) {
+            showProductDetails(selectedProduct, productData);
+        }
+    });
+}
+
+function showProductDetails(productName, allData) {
+    const branchFilter = document.getElementById('branchFilter');
+    if (!branchFilter || allData.length === 0) {
+        return;
+    }
+    
+    const branchFilterValue = branchFilter.value;
+    
+    // Filter data for selected product
+    let productData = allData.filter(item => item.Menu === productName);
+    
+    // Apply branch filter if selected
+    if (branchFilterValue) {
+        productData = productData.filter(item => item.Branch === branchFilterValue);
+    }
+    
+    if (productData.length === 0) {
+        return;
+    }
+    
+    // Calculate product metrics
+    const totalRevenue = productData.reduce((sum, item) => sum + (item.Total || 0), 0);
+    const totalQty = productData.reduce((sum, item) => sum + (item.Qty || 0), 0);
+    const totalMargin = productData.reduce((sum, item) => sum + (item.Margin || 0), 0);
+    const avgMargin = totalRevenue > 0 ? (totalMargin / totalRevenue * 100) : 0;
+    const branchesAvailable = productData.length;
+    
+    // Update metric cards
+    document.getElementById('total-revenue-product').textContent = formatCurrency(totalRevenue);
+    document.getElementById('total-qty-product').textContent = formatNumber(totalQty);
+    document.getElementById('avg-margin-product').textContent = avgMargin.toFixed(1) + '%';
+    document.getElementById('branches-available').textContent = branchesAvailable;
+    
+    // Create product comparison chart
+    createProductComparisonChart(productData, productName);
+}
+
+function createProductComparisonChart(productData, productName) {
+    if (productData.length === 0) {
+        return;
+    }
+    
+    // Prepare data for chart
+    const branches = productData.map(item => item.Branch || 'Unknown');
+    const revenues = productData.map(item => item.Total || 0);
+    const quantities = productData.map(item => item.Qty || 0);
+    const margins = productData.map(item => item.Margin_Percentage || 0);
+    
+    const chartData = [
+        {
+            x: branches,
+            y: revenues,
+            type: 'bar',
+            name: 'Revenue',
+            yaxis: 'y',
+            marker: { color: '#1f77b4' }
+        },
+        {
+            x: branches,
+            y: margins,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Margin %',
+            yaxis: 'y2',
+            line: { color: '#ff7f0e', width: 3 },
+            marker: { size: 8 }
+        }
+    ];
+    
+    const layout = {
+        title: `Performa ${productName} per Cabang`,
+        xaxis: { 
+            title: 'Cabang',
+            tickangle: 45
+        },
+        yaxis: {
+            title: 'Revenue (Rp)',
+            side: 'left',
+            tickformat: ',.0f'
+        },
+        yaxis2: {
+            title: 'Margin (%)',
+            side: 'right',
+            overlaying: 'y',
+            tickformat: '.1f'
+        },
+        margin: { t: 50, l: 80, r: 80, b: 120 },
+        height: 400,
+        showlegend: true
+    };
+    
+    try {
+        Plotly.newPlot('product-comparison-chart', chartData, layout, {
+            responsive: true,
+            displayModeBar: false
+        });
+    } catch (error) {
+        console.error('Error creating product comparison chart:', error);
+    }
+}
+
+// Utility functions
+function formatCurrency(value) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(value || 0);
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('id-ID').format(value || 0);
+}
+</script>
+{% endblock %}
