@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ error_code }} - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}⚠️ Error {{ error_code }}{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Error {{ error_code }}</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+        <div class="chart-card text-center">
+            <div class="chart-body py-5">
+                <div class="mb-4">
+                    {% if error_code == 404 %}
+                        <i class="fas fa-search fa-5x text-warning mb-3"></i>
+                        <h2 class="text-warning">Halaman Tidak Ditemukan</h2>
+                    {% elif error_code == 500 %}
+                        <i class="fas fa-exclamation-triangle fa-5x text-danger mb-3"></i>
+                        <h2 class="text-danger">Internal Server Error</h2>
+                    {% elif error_code == 413 %}
+                        <i class="fas fa-file-upload fa-5x text-warning mb-3"></i>
+                        <h2 class="text-warning">File Terlalu Besar</h2>
+                    {% else %}
+                        <i class="fas fa-exclamation-circle fa-5x text-secondary mb-3"></i>
+                        <h2 class="text-secondary">Terjadi Kesalahan</h2>
+                    {% endif %}
+                </div>
+                
+                <p class="lead mb-4">{{ error_message }}</p>
+                
+                {% if error_code == 404 %}
+                    <p class="text-muted">Halaman yang Anda cari mungkin telah dipindahkan, dihapus, atau tidak pernah ada.</p>
+                {% elif error_code == 500 %}
+                    <p class="text-muted">Terjadi kesalahan pada server. Tim teknis kami telah diberitahu dan sedang memperbaiki masalah ini.</p>
+                {% elif error_code == 413 %}
+                    <p class="text-muted">File yang Anda upload melebihi batas maksimal 50MB. Silakan compress file atau bagi menjadi beberapa file kecil.</p>
+                {% endif %}
+                
+                <div class="mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary me-3">
+                        <i class="fas fa-home me-2"></i>Kembali ke Dashboard
+                    </a>
+                    
+                    {% if error_code == 413 %}
+                        <a href="{{ url_for('upload_files') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-upload me-2"></i>Coba Upload Lagi
+                        </a>
+                    {% else %}
+                        <button class="btn btn-outline-secondary" onclick="history.back()">
+                            <i class="fas fa-arrow-left me-2"></i>Halaman Sebelumnya
+                        </button>
+                    {% endif %}
+                </div>
+                
+                {% if error_code == 500 %}
+                    <div class="mt-4">
+                        <small class="text-muted">
+                            Error ID: {{ moment().format('YYYYMMDD-HHmmss') }}<br>
+                            Jika masalah berlanjut, silakan hubungi administrator dengan menyertakan Error ID di atas.
+                        </small>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Helpful Links -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💡 Bantuan & Solusi</h5>
+            </div>
+            <div class="chart-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-question-circle me-2"></i>Butuh Bantuan?</h6>
+                            <ul class="mb-0 small">
+                                <li>Periksa panduan di <a href="#" onclick="window.open('README.md')">README.md</a></li>
+                                <li>Jalankan <code>python check_setup.py</code> untuk diagnosis</li>
+                                <li>Pastikan semua file template tersedia</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-tools me-2"></i>Troubleshooting</h6>
+                            <ul class="mb-0 small">
+                                {% if error_code == 404 %}
+                                    <li>Cek apakah URL sudah benar</li>
+                                    <li>Pastikan semua template HTML ada</li>
+                                    <li>Restart aplikasi Flask</li>
+                                {% elif error_code == 500 %}
+                                    <li>Cek log error di console</li>
+                                    <li>Pastikan dependencies terinstall</li>
+                                    <li>Verifikasi konfigurasi .env</li>
+                                {% elif error_code == 413 %}
+                                    <li>Compress file Excel sebelum upload</li>
+                                    <li>Hapus kolom/baris yang tidak perlu</li>
+                                    <li>Upload file satu per satu</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="alert alert-success">
+                            <h6><i class="fas fa-link me-2"></i>Quick Links</h6>
+                            <ul class="mb-0 small">
+                                <li><a href="{{ url_for('index') }}">Dashboard Overview</a></li>
+                                <li><a href="{{ url_for('upload_files') }}">Upload Data Baru</a></li>
+                                <li><a href="{{ url_for('branch_comparison') }}">Analisis Cabang</a></li>
+                                <li><a href="{{ url_for('chat') }}">AI Assistant</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-card {
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+    
+    .fa-5x {
+        font-size: 4rem !important;
+    }
+    
+    .alert {
+        border-radius: 8px;
+        border: none;
+    }
+    
+    .alert h6 {
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+    
+    .alert ul {
+        padding-left: 20px;
+    }
+    
+    .btn {
+        border-radius: 8px;
+        padding: 10px 20px;
+        font-weight: 500;
+    }
+    
+    .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Auto-refresh untuk error 500 setelah 30 detik
+{% if error_code == 500 %}
+setTimeout(function() {
+    if (confirm('Coba refresh halaman untuk melihat apakah masalah sudah teratasi?')) {
+        window.location.reload();
+    }
+}, 30000);
+{% endif %}
+
+// Log error untuk debugging
+console.error('Error {{ error_code }}: {{ error_message }}');
+</script>
+{% endblock %}

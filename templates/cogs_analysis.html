@@ -1,0 +1,591 @@
+{% extends "base.html" %}
+
+{% block title %}Analisis COGS - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}📦 Analisis COGS Multi-Cabang{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Analisis COGS</li>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-calculator"></i>
+            </div>
+            <div class="metric-value">{{ (cogs_data['COGS Total'].sum() / 1000000) | round(1) }}M</div>
+            <div class="metric-label">Total COGS (Rp)</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-percentage"></i>
+            </div>
+            <div class="metric-value">{{ cogs_data['COGS Total (%)'].mean() | round(1) }}%</div>
+            <div class="metric-label">Rata-rata COGS %</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="metric-value">{{ (100 - cogs_data['COGS Total (%)'].mean()) | round(1) }}%</div>
+            <div class="metric-label">Efisiensi COGS</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #9370DB 0%, #8A2BE2 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="metric-value">{{ branch_cogs.iloc[0]['Branch'][:10] }}{% if branch_cogs.iloc[0]['Branch']|length > 10 %}...{% endif %}</div>
+            <div class="metric-label">Most Efficient Branch</div>
+        </div>
+    </div>
+</div>
+
+<!-- COGS Heatmap -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🔥 COGS Percentage Heatmap per Produk per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="cogs-heatmap-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- COGS Analysis Charts -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Efisiensi COGS per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="branch-efficiency-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Top 15 Produk dengan Variasi COGS Tertinggi</h5>
+            </div>
+            <div class="chart-body">
+                <div id="cogs-variance-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Best and Worst Performers -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">✅ Best COGS Efficiency (Top 10)</h5>
+            </div>
+            <div class="chart-body">
+                {% set best_cogs = cogs_data.nsmallest(10, 'COGS Total (%)') %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Produk</th>
+                                <th>Cabang</th>
+                                <th>COGS %</th>
+                                <th>Efisiensi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i, (_, item) in enumerate(best_cogs.iterrows(), 1) %}
+                            <tr>
+                                <td>
+                                    <span class="badge status-excellent">#{{ i }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ item.Menu[:20] }}{% if item.Menu|length > 20 %}...{% endif %}</strong>
+                                </td>
+                                <td>{{ item.Branch[:15] }}{% if item.Branch|length > 15 %}...{% endif %}</td>
+                                <td>
+                                    <span class="badge status-excellent">{{ item['COGS Total (%)'] | round(1) }}%</span>
+                                </td>
+                                <td>
+                                    <span class="badge status-excellent">{{ item.COGS_Efficiency | round(1) }}%</span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">⚠️ Worst COGS Efficiency (Top 10)</h5>
+            </div>
+            <div class="chart-body">
+                {% set worst_cogs = cogs_data.nlargest(10, 'COGS Total (%)') %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Produk</th>
+                                <th>Cabang</th>
+                                <th>COGS %</th>
+                                <th>Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for i, (_, item) in enumerate(worst_cogs.iterrows(), 1) %}
+                            <tr>
+                                <td>
+                                    <span class="badge status-poor">#{{ i }}</span>
+                                </td>
+                                <td>
+                                    <strong>{{ item.Menu[:20] }}{% if item.Menu|length > 20 %}...{% endif %}</strong>
+                                </td>
+                                <td>{{ item.Branch[:15] }}{% if item.Branch|length > 15 %}...{% endif %}</td>
+                                <td>
+                                    <span class="badge status-poor">{{ item['COGS Total (%)'] | round(1) }}%</span>
+                                </td>
+                                <td>{{ item.Total | currency }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Product COGS Analysis -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🔍 Analisis COGS per Produk Spesifik</h5>
+            </div>
+            <div class="chart-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="cogsProductSelect" class="form-label">Pilih Produk untuk Analisis COGS:</label>
+                        <select id="cogsProductSelect" class="form-select">
+                            <option value="">-- Pilih Produk --</option>
+                            {% for product in cogs_data['Menu'].unique() %}
+                            <option value="{{ product }}">{{ product }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Filter Cabang:</label>
+                        <select id="cogsBranchFilter" class="form-select">
+                            <option value="">Semua Cabang</option>
+                            {% for branch in cogs_data['Branch'].unique() %}
+                            <option value="{{ branch }}">{{ branch }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="cogs-product-detail" style="display: none;">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #dc3545, #bd2130); padding: 15px;">
+                                <div class="metric-value" id="cogs-avg-percentage" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Avg COGS %</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #28a745, #1e7e34); padding: 15px;">
+                                <div class="metric-value" id="cogs-best-branch" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Best COGS %</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #ffc107, #e0a800); padding: 15px;">
+                                <div class="metric-value" id="cogs-worst-branch" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Worst COGS %</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #007bff, #0056b3); padding: 15px;">
+                                <div class="metric-value" id="cogs-variance" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">COGS Variance</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="product-cogs-chart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💡 COGS Optimization Insights</h5>
+            </div>
+            <div class="chart-body">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-chart-bar me-2"></i>COGS Overview</h6>
+                    <ul class="mb-0">
+                        <li><strong>Total Products Analyzed:</strong> {{ cogs_data['Menu'].nunique() }}</li>
+                        <li><strong>Active Branches:</strong> {{ cogs_data['Branch'].nunique() }}</li>
+                        <li><strong>Avg COGS Across All:</strong> {{ cogs_data['COGS Total (%)'].mean() | round(1) }}%</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-trophy me-2"></i>Top Efficient Branches</h6>
+                    <ul class="mb-0">
+                        {% for _, branch in branch_cogs.head(3).iterrows() %}
+                        <li><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong><br>
+                            <small>COGS: {{ branch['COGS Total (%)'] | round(1) }}% | Efficiency: {{ branch.COGS_Efficiency | round(1) }}%</small>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Optimization Opportunities</h6>
+                    <ul class="mb-0">
+                        <li>High COGS branches: {{ (branch_cogs['COGS Total (%)'] > 40).sum() }}</li>
+                        <li>Products with high variance need standardization</li>
+                        <li>Potential supplier negotiations</li>
+                        <li>Portion control improvements</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-lightbulb me-2"></i>Recommendations</h6>
+                    <ol class="mb-0 small">
+                        <li>Standardize supplier procurement</li>
+                        <li>Implement best practices from efficient branches</li>
+                        <li>Review portion control procedures</li>
+                        <li>Negotiate group purchasing contracts</li>
+                        <li>Regular COGS audit and monitoring</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Branch COGS Ranking Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="data-table">
+            <div class="chart-header">
+                <h5 class="chart-title">🏆 Ranking Efisiensi COGS per Cabang</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table" id="cogsTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Cabang</th>
+                            <th>Avg COGS %</th>
+                            <th>Efisiensi %</th>
+                            <th>Products Analyzed</th>
+                            <th>Total COGS Value</th>
+                            <th>Status</th>
+                            <th>Action Needed</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i, (_, branch) in enumerate(branch_cogs.iterrows(), 1) %}
+                        <tr>
+                            <td>
+                                {% if i <= 3 %}
+                                    <span class="badge status-excellent">#{{ i }}</span>
+                                {% elif i <= branch_cogs|length // 2 %}
+                                    <span class="badge status-good">#{{ i }}</span>
+                                {% else %}
+                                    <span class="badge status-fair">#{{ i }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <strong>{{ branch.Branch }}</strong>
+                            </td>
+                            <td>
+                                <span class="badge {% if branch['COGS Total (%)'] < 30 %}status-excellent{% elif branch['COGS Total (%)'] < 40 %}status-good{% elif branch['COGS Total (%)'] < 50 %}status-fair{% else %}status-poor{% endif %}">
+                                    {{ branch['COGS Total (%)'] | round(1) }}%
+                                </span>
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if branch.COGS_Efficiency > 60 %}bg-success{% elif branch.COGS_Efficiency > 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ branch.COGS_Efficiency }}%">
+                                        {{ branch.COGS_Efficiency | round(1) }}%
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% set product_count = cogs_data[cogs_data['Branch'] == branch.Branch]['Menu'].nunique() %}
+                                {{ product_count }} products
+                            </td>
+                            <td>
+                                {% set total_cogs_value = cogs_data[cogs_data['Branch'] == branch.Branch]['COGS Total'].sum() %}
+                                {{ total_cogs_value | currency }}
+                            </td>
+                            <td>
+                                {% if branch.COGS_Efficiency > 60 %}
+                                    <span class="badge status-excellent">Excellent</span>
+                                {% elif branch.COGS_Efficiency > 50 %}
+                                    <span class="badge status-good">Good</span>
+                                {% elif branch.COGS_Efficiency > 40 %}
+                                    <span class="badge status-fair">Fair</span>
+                                {% else %}
+                                    <span class="badge status-poor">Poor</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if branch.COGS_Efficiency < 50 %}
+                                    <small class="text-danger">Urgent Review</small>
+                                {% elif branch.COGS_Efficiency < 60 %}
+                                    <small class="text-warning">Monitor Closely</small>
+                                {% else %}
+                                    <small class="text-success">Maintain Standard</small>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress {
+        background-color: #e9ecef;
+        border-radius: 0.375rem;
+        overflow: hidden;
+    }
+    
+    .progress-bar {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        color: white;
+        text-align: center;
+        white-space: nowrap;
+        background-color: #007bff;
+        transition: width 0.6s ease;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    #cogs-product-detail {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .alert {
+        border-radius: 8px;
+        border: none;
+    }
+    
+    .alert h6 {
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    initializeCOGSCharts();
+    
+    // Initialize product COGS analysis
+    initializeCOGSProductAnalysis();
+    
+    // Initialize DataTable
+    $('#cogsTable').DataTable({
+        "pageLength": 20,
+        "order": [[ 0, "asc" ]],
+        "columnDefs": [
+            { "orderable": false, "targets": [6, 7] }
+        ],
+        "language": {
+            "search": "Cari cabang:",
+            "lengthMenu": "Tampilkan _MENU_ cabang per halaman",
+            "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ cabang",
+            "paginate": {
+                "first": "Pertama",
+                "last": "Terakhir",
+                "next": "Selanjutnya",
+                "previous": "Sebelumnya"
+            }
+        }
+    });
+});
+
+function initializeCOGSCharts() {
+    // COGS Heatmap
+    const cogsHeatmapData = {{ charts.cogs_heatmap | safe }};
+    Plotly.newPlot('cogs-heatmap-chart', cogsHeatmapData.data, cogsHeatmapData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Branch Efficiency Chart
+    const branchEfficiencyData = {{ charts.branch_efficiency | safe }};
+    Plotly.newPlot('branch-efficiency-chart', branchEfficiencyData.data, branchEfficiencyData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // COGS Variance Chart
+    const cogsVarianceData = {{ charts.cogs_variance | safe }};
+    Plotly.newPlot('cogs-variance-chart', cogsVarianceData.data, cogsVarianceData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+}
+
+function initializeCOGSProductAnalysis() {
+    const productSelect = document.getElementById('cogsProductSelect');
+    const branchFilter = document.getElementById('cogsBranchFilter');
+    const detailAnalysis = document.getElementById('cogs-product-detail');
+    
+    // COGS data for analysis
+    const cogsData = {{ cogs_data.to_dict('records') | safe }};
+    
+    productSelect.addEventListener('change', function() {
+        const selectedProduct = this.value;
+        if (selectedProduct) {
+            showCOGSProductDetails(selectedProduct, cogsData);
+            detailAnalysis.style.display = 'block';
+        } else {
+            detailAnalysis.style.display = 'none';
+        }
+    });
+    
+    branchFilter.addEventListener('change', function() {
+        const selectedProduct = productSelect.value;
+        if (selectedProduct) {
+            showCOGSProductDetails(selectedProduct, cogsData);
+        }
+    });
+}
+
+function showCOGSProductDetails(productName, allData) {
+    const branchFilter = document.getElementById('cogsBranchFilter').value;
+    
+    // Filter data for selected product
+    let productData = allData.filter(item => item.Menu === productName);
+    
+    // Apply branch filter if selected
+    if (branchFilter) {
+        productData = productData.filter(item => item.Branch === branchFilter);
+    }
+    
+    if (productData.length === 0) {
+        return;
+    }
+    
+    // Calculate COGS metrics
+    const cogsPercentages = productData.map(item => item['COGS Total (%)']);
+    const avgCOGS = cogsPercentages.reduce((a, b) => a + b, 0) / cogsPercentages.length;
+    const minCOGS = Math.min(...cogsPercentages);
+    const maxCOGS = Math.max(...cogsPercentages);
+    const variance = cogsPercentages.reduce((sum, val) => sum + Math.pow(val - avgCOGS, 2), 0) / cogsPercentages.length;
+    const stdDev = Math.sqrt(variance);
+    
+    // Update metric cards
+    document.getElementById('cogs-avg-percentage').textContent = avgCOGS.toFixed(1) + '%';
+    document.getElementById('cogs-best-branch').textContent = minCOGS.toFixed(1) + '%';
+    document.getElementById('cogs-worst-branch').textContent = maxCOGS.toFixed(1) + '%';
+    document.getElementById('cogs-variance').textContent = stdDev.toFixed(1) + '%';
+    
+    // Create COGS comparison chart
+    createProductCOGSChart(productData, productName);
+}
+
+function createProductCOGSChart(productData, productName) {
+    // Prepare data for chart
+    const branches = productData.map(item => item.Branch);
+    const cogsPercentages = productData.map(item => item['COGS Total (%)']);
+    const revenues = productData.map(item => item.Total);
+    
+    const chartData = [{
+        x: branches,
+        y: cogsPercentages,
+        type: 'bar',
+        name: 'COGS %',
+        marker: {
+            color: cogsPercentages,
+            colorscale: 'RdYlGn_r',
+            showscale: true,
+            colorbar: {
+                title: 'COGS (%)',
+                titleside: 'right'
+            }
+        },
+        text: revenues.map(r => `Revenue: ${formatCurrency(r)}`),
+        textposition: 'outside',
+        hovertemplate: '<b>%{x}</b><br>' +
+                      'COGS: %{y:.1f}%<br>' +
+                      '%{text}<br>' +
+                      '<extra></extra>'
+    }];
+    
+    const layout = {
+        title: `COGS % ${productName} per Cabang`,
+        xaxis: { 
+            title: 'Cabang',
+            tickangle: 45
+        },
+        yaxis: { 
+            title: 'COGS (%)',
+            tickformat: '.1f'
+        },
+        margin: { t: 50, l: 60, r: 60, b: 120 },
+        height: 400
+    };
+    
+    Plotly.newPlot('product-cogs-chart', chartData, layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+}
+
+// Utility functions
+function formatCurrency(value) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(value);
+}
+</script>
+{% endblock %}

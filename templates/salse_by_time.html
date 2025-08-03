@@ -1,0 +1,639 @@
+{% extends "base.html" %}
+
+{% block title %}Sales by Time - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}⏰ Sales by Time - Analisis Temporal{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Sales by Time</li>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-clock"></i>
+            </div>
+            {% set peak_hours = time_data.hourly.loc[time_data.hourly.groupby('Branch')['Total'].idxmax()] %}
+            <div class="metric-value">{{ peak_hours['Hour'].mode().iloc[0] if not peak_hours['Hour'].empty else 'N/A' }}:00</div>
+            <div class="metric-label">Most Common Peak Hour</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-calendar-day"></i>
+            </div>
+            {% set daily_totals = time_data.daily_pattern.groupby('Day_of_Week')['Total_Revenue'].sum() %}
+            <div class="metric-value">{{ daily_totals.idxmax() if not daily_totals.empty else 'N/A' }}</div>
+            <div class="metric-label">Best Day of Week</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="metric-value">{{ time_data.hourly['Hour'].nunique() }}</div>
+            <div class="metric-label">Active Hours</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #9370DB 0%, #8A2BE2 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="metric-value">{{ time_data.hourly['Branch'].nunique() }}</div>
+            <div class="metric-label">Branches Analyzed</div>
+        </div>
+    </div>
+</div>
+
+<!-- Hourly Analysis -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🔥 Heatmap Penjualan per Jam per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="hourly-heatmap-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📈 Rata-rata Penjualan per Jam</h5>
+            </div>
+            <div class="chart-body">
+                <div id="hourly-average-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Daily Pattern Analysis -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Total Penjualan per Hari dalam Seminggu</h5>
+            </div>
+            <div class="chart-body">
+                <div id="daily-pattern-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📦 Distribusi Penjualan Harian per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="daily-branch-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Weekly and Monthly Trends -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Tren Penjualan Mingguan per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="weekly-trend-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📅 Perbandingan Penjualan Bulanan</h5>
+            </div>
+            <div class="chart-body">
+                <div id="monthly-comparison-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Peak Hours Analysis -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">⏰ Analisis Jam Puncak per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div class="table-responsive">
+                    <table class="table" id="peakHoursTable">
+                        <thead>
+                            <tr>
+                                <th>Cabang</th>
+                                <th>Jam Puncak</th>
+                                <th>Revenue Jam Puncak</th>
+                                <th>Jam Sepi</th>
+                                <th>Revenue Jam Sepi</th>
+                                <th>Peak vs Low Ratio</th>
+                                <th>Operational Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for branch in time_data.hourly['Branch'].unique() %}
+                            {% set branch_data = time_data.hourly[time_data.hourly['Branch'] == branch] %}
+                            {% set peak_hour_data = branch_data.loc[branch_data['Total'].idxmax()] %}
+                            {% set low_hour_data = branch_data.loc[branch_data['Total'].idxmin()] %}
+                            <tr>
+                                <td>
+                                    <strong>{{ branch[:25] }}{% if branch|length > 25 %}...{% endif %}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge status-excellent">{{ peak_hour_data['Hour'] }}:00</span>
+                                </td>
+                                <td>{{ peak_hour_data['Total'] | currency }}</td>
+                                <td>
+                                    <span class="badge status-fair">{{ low_hour_data['Hour'] }}:00</span>
+                                </td>
+                                <td>{{ low_hour_data['Total'] | currency }}</td>
+                                <td>
+                                    {% set ratio = peak_hour_data['Total'] / low_hour_data['Total'] if low_hour_data['Total'] > 0 else 0 %}
+                                    <span class="badge {% if ratio > 5 %}status-poor{% elif ratio > 3 %}status-fair{% else %}status-good{% endif %}">
+                                        {{ ratio | round(1) }}x
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set active_hours = branch_data[branch_data['Total'] > 0]['Hour'].nunique() %}
+                                    {{ active_hours }} hours
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Distribusi Jam Puncak</h5>
+            </div>
+            <div class="chart-body">
+                <div id="peak-hours-distribution-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Time Insights and Recommendations -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🔍 Insights Pola Waktu</h5>
+            </div>
+            <div class="chart-body">
+                {% set daily_totals = time_data.daily_pattern.groupby('Day_of_Week')['Total_Revenue'].sum() %}
+                {% set best_day = daily_totals.idxmax() if not daily_totals.empty else 'N/A' %}
+                {% set worst_day = daily_totals.idxmin() if not daily_totals.empty else 'N/A' %}
+                {% set peak_hours = time_data.hourly.loc[time_data.hourly.groupby('Branch')['Total'].idxmax()] %}
+                {% set common_peak = peak_hours['Hour'].mode().iloc[0] if not peak_hours['Hour'].empty else 'N/A' %}
+                
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-calendar-alt me-2"></i>Pola Harian</h6>
+                    <ul class="mb-0">
+                        <li><strong>Hari Terbaik:</strong> {{ best_day }} ({{ daily_totals.max() | currency }})</li>
+                        <li><strong>Hari Terlemah:</strong> {{ worst_day }} ({{ daily_totals.min() | currency }})</li>
+                        <li><strong>Gap Harian:</strong> {{ (daily_totals.max() / daily_totals.min()) | round(1) }}x difference</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-clock me-2"></i>Pola Jam</h6>
+                    <ul class="mb-0">
+                        <li><strong>Jam Puncak Umum:</strong> {{ common_peak }}:00</li>
+                        <li><strong>Cabang dengan Peak Sama:</strong> {{ (peak_hours['Hour'] == common_peak).sum() }} cabang</li>
+                        <li><strong>Variasi Jam Puncak:</strong> {{ peak_hours['Hour'].nunique() }} jam berbeda</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-chart-line me-2"></i>Trend Analysis</h6>
+                    <ul class="mb-0">
+                        <li>Peak hours consistency: {{ 'High' if peak_hours['Hour'].nunique() <= 3 else 'Medium' if peak_hours['Hour'].nunique() <= 6 else 'Low' }}</li>
+                        <li>Weekend vs Weekday pattern analysis needed</li>
+                        <li>Seasonal adjustments may be required</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💡 Rekomendasi Operasional</h5>
+            </div>
+            <div class="chart-body">
+                <div class="alert alert-primary">
+                    <h6><i class="fas fa-users me-2"></i>Staffing Optimization</h6>
+                    <ul class="mb-0">
+                        <li>Tambah staff pada jam {{ common_peak }}:00 - {{ (common_peak + 2) % 24 }}:00</li>
+                        <li>Reduce staff pada jam dengan traffic rendah</li>
+                        <li>Cross-training untuk flexibility</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-success">
+                    <h6><i class="fas fa-bullhorn me-2"></i>Marketing Strategy</h6>
+                    <ul class="mb-0">
+                        <li>Fokus promosi pada hari {{ best_day }}</li>
+                        <li>Happy hour campaigns untuk jam sepi</li>
+                        <li>Weekend special programs</li>
+                        <li>Lunch/dinner time optimization</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-cogs me-2"></i>Operational Efficiency</h6>
+                    <ul class="mb-0">
+                        <li>Synchronize inventory delivery dengan peak hours</li>
+                        <li>Maintenance scheduling pada jam sepi</li>
+                        <li>Kitchen prep timing optimization</li>
+                        <li>Table turnover rate improvement</li>
+                    </ul>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-chart-bar me-2"></i>Performance Monitoring</h6>
+                    <ul class="mb-0">
+                        <li>Track hourly sales targets</li>
+                        <li>Monitor branch consistency</li>
+                        <li>Weekly pattern analysis</li>
+                        <li>Seasonal trend adjustments</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Time-based Performance Filters -->
+<div class="row">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🔍 Filter Analisis Waktu</h5>
+            </div>
+            <div class="chart-body">
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label for="branchTimeFilter" class="form-label">Filter Cabang:</label>
+                        <select id="branchTimeFilter" class="form-select">
+                            <option value="">Semua Cabang</option>
+                            {% for branch in time_data.hourly['Branch'].unique() %}
+                            <option value="{{ branch }}">{{ branch }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="dayFilter" class="form-label">Filter Hari:</label>
+                        <select id="dayFilter" class="form-select">
+                            <option value="">Semua Hari</option>
+                            <option value="Monday">Senin</option>
+                            <option value="Tuesday">Selasa</option>
+                            <option value="Wednesday">Rabu</option>
+                            <option value="Thursday">Kamis</option>
+                            <option value="Friday">Jumat</option>
+                            <option value="Saturday">Sabtu</option>
+                            <option value="Sunday">Minggu</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="hourRangeFilter" class="form-label">Range Jam:</label>
+                        <select id="hourRangeFilter" class="form-select">
+                            <option value="">Semua Jam</option>
+                            <option value="morning">Pagi (6-12)</option>
+                            <option value="afternoon">Siang (12-18)</option>
+                            <option value="evening">Malam (18-24)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button class="btn btn-primary mt-4" onclick="applyTimeFilters()">
+                            <i class="fas fa-filter me-2"></i>Apply Filters
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="filtered-results" class="mt-4" style="display: none;">
+                    <h6>📊 Hasil Filter:</h6>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #17a2b8, #138496); padding: 15px;">
+                                <div class="metric-value" id="filtered-total-revenue" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Total Revenue</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #28a745, #1e7e34); padding: 15px;">
+                                <div class="metric-value" id="filtered-avg-hourly" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Avg per Hour</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #ffc107, #e0a800); padding: 15px;">
+                                <div class="metric-value" id="filtered-peak-hour" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Peak Hour</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="metric-card" style="background: linear-gradient(135deg, #dc3545, #bd2130); padding: 15px;">
+                                <div class="metric-value" id="filtered-total-qty" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Total Quantity</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .metric-card {
+        transition: transform 0.2s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+    
+    #filtered-results {
+        animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .table td, .table th {
+        vertical-align: middle;
+    }
+    
+    .alert {
+        border-radius: 8px;
+        border: none;
+    }
+    
+    .alert h6 {
+        margin-bottom: 10px;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize charts
+    initializeTimeCharts();
+    
+    // Initialize DataTable
+    $('#peakHoursTable').DataTable({
+        "pageLength": 15,
+        "order": [[ 2, "desc" ]],
+        "language": {
+            "search": "Cari cabang:",
+            "lengthMenu": "Tampilkan _MENU_ cabang per halaman",
+            "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ cabang",
+            "paginate": {
+                "first": "Pertama",
+                "last": "Terakhir",
+                "next": "Selanjutnya",
+                "previous": "Sebelumnya"
+            }
+        }
+    });
+});
+
+function initializeTimeCharts() {
+    // Hourly Heatmap
+    const hourlyHeatmapData = {{ charts.hourly_heatmap | safe }};
+    Plotly.newPlot('hourly-heatmap-chart', hourlyHeatmapData.data, hourlyHeatmapData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Hourly Average
+    const hourlyAverageData = {{ charts.hourly_average | safe }};
+    Plotly.newPlot('hourly-average-chart', hourlyAverageData.data, hourlyAverageData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Daily Pattern
+    const dailyPatternData = {{ charts.daily_pattern | safe }};
+    Plotly.newPlot('daily-pattern-chart', dailyPatternData.data, dailyPatternData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Weekly Trend (if available)
+    {% if 'weekly' in time_data %}
+    const weeklyData = {{ time_data.weekly.to_dict('records') | safe }};
+    createWeeklyTrendChart(weeklyData);
+    {% endif %}
+    
+    // Monthly Comparison (if available)
+    {% if 'monthly' in time_data %}
+    const monthlyData = {{ time_data.monthly.to_dict('records') | safe }};
+    createMonthlyComparisonChart(monthlyData);
+    {% endif %}
+    
+    // Peak Hours Distribution
+    createPeakHoursDistributionChart();
+}
+
+function createWeeklyTrendChart(weeklyData) {
+    const branches = [...new Set(weeklyData.map(item => item.Branch))];
+    const traces = branches.map(branch => {
+        const branchData = weeklyData.filter(item => item.Branch === branch);
+        return {
+            x: branchData.map(item => item.Week),
+            y: branchData.map(item => item.Total),
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: branch,
+            line: { width: 2 }
+        };
+    });
+    
+    const layout = {
+        title: 'Tren Penjualan Mingguan per Cabang',
+        xaxis: { title: 'Minggu' },
+        yaxis: { title: 'Revenue (Rp)', tickformat: ',.0f' },
+        height: 400,
+        margin: { t: 50, l: 60, r: 20, b: 50 }
+    };
+    
+    Plotly.newPlot('weekly-trend-chart', traces, layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+}
+
+function createMonthlyComparisonChart(monthlyData) {
+    const branches = [...new Set(monthlyData.map(item => item.Branch))];
+    const months = [...new Set(monthlyData.map(item => item.Month))].sort();
+    
+    const traces = branches.map(branch => {
+        const branchData = monthlyData.filter(item => item.Branch === branch);
+        return {
+            x: months,
+            y: months.map(month => {
+                const monthData = branchData.find(item => item.Month === month);
+                return monthData ? monthData.Total : 0;
+            }),
+            type: 'bar',
+            name: branch
+        };
+    });
+    
+    const layout = {
+        title: 'Perbandingan Penjualan Bulanan',
+        xaxis: { title: 'Bulan' },
+        yaxis: { title: 'Revenue (Rp)', tickformat: ',.0f' },
+        barmode: 'group',
+        height: 400,
+        margin: { t: 50, l: 60, r: 20, b: 50 }
+    };
+    
+    Plotly.newPlot('monthly-comparison-chart', traces, layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+}
+
+function createPeakHoursDistributionChart() {
+    // Get peak hours data from table
+    const table = document.getElementById('peakHoursTable');
+    const peakHours = [];
+    
+    for (let i = 1; i < table.rows.length; i++) {
+        const peakHourText = table.rows[i].cells[1].textContent;
+        const hour = parseInt(peakHourText.split(':')[0]);
+        peakHours.push(hour);
+    }
+    
+    // Count frequency of each hour
+    const hourCounts = {};
+    peakHours.forEach(hour => {
+        hourCounts[hour] = (hourCounts[hour] || 0) + 1;
+    });
+    
+    const hours = Object.keys(hourCounts).map(Number).sort((a, b) => a - b);
+    const counts = hours.map(hour => hourCounts[hour]);
+    
+    const chartData = [{
+        x: hours.map(h => `${h}:00`),
+        y: counts,
+        type: 'bar',
+        marker: {
+            color: counts,
+            colorscale: 'Viridis',
+            showscale: false
+        }
+    }];
+    
+    const layout = {
+        title: 'Distribusi Jam Puncak Cabang',
+        xaxis: { title: 'Jam' },
+        yaxis: { title: 'Jumlah Cabang' },
+        height: 300,
+        margin: { t: 50, l: 40, r: 20, b: 40 }
+    };
+    
+    Plotly.newPlot('peak-hours-distribution-chart', chartData, layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+}
+
+function applyTimeFilters() {
+    const branchFilter = document.getElementById('branchTimeFilter').value;
+    const dayFilter = document.getElementById('dayFilter').value;
+    const hourRangeFilter = document.getElementById('hourRangeFilter').value;
+    
+    // Get original time data
+    const timeData = {{ time_data.hourly.to_dict('records') | safe }};
+    
+    // Apply filters
+    let filteredData = timeData;
+    
+    if (branchFilter) {
+        filteredData = filteredData.filter(item => item.Branch === branchFilter);
+    }
+    
+    if (hourRangeFilter) {
+        const hourRanges = {
+            'morning': [6, 12],
+            'afternoon': [12, 18],
+            'evening': [18, 24]
+        };
+        
+        const [startHour, endHour] = hourRanges[hourRangeFilter];
+        filteredData = filteredData.filter(item => 
+            item.Hour >= startHour && item.Hour < endHour
+        );
+    }
+    
+    if (filteredData.length === 0) {
+        alert('Tidak ada data yang sesuai dengan filter yang dipilih.');
+        return;
+    }
+    
+    // Calculate filtered metrics
+    const totalRevenue = filteredData.reduce((sum, item) => sum + item.Total, 0);
+    const avgHourly = totalRevenue / filteredData.length;
+    const totalQty = filteredData.reduce((sum, item) => sum + item.Qty, 0);
+    
+    // Find peak hour in filtered data
+    const peakHourData = filteredData.reduce((max, item) => 
+        item.Total > max.Total ? item : max, filteredData[0]
+    );
+    
+    // Update filtered results
+    document.getElementById('filtered-total-revenue').textContent = formatCurrency(totalRevenue);
+    document.getElementById('filtered-avg-hourly').textContent = formatCurrency(avgHourly);
+    document.getElementById('filtered-peak-hour').textContent = `${peakHourData.Hour}:00`;
+    document.getElementById('filtered-total-qty').textContent = formatNumber(totalQty);
+    
+    // Show results
+    document.getElementById('filtered-results').style.display = 'block';
+}
+
+// Utility functions
+function formatCurrency(value) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(value);
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('id-ID').format(value);
+}
+</script>
+{% endblock %}

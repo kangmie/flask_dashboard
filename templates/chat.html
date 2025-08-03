@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}AI Assistant - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}🤖 AI Assistant{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">AI Assistant</li>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💬 Chat dengan AI Multi-Branch Analyst</h5>
+            </div>
+            <div class="chart-body">
+                {% if not chatbot_available %}
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>AI Chatbot Tidak Tersedia</h6>
+                    <p class="mb-0">Chatbot AI memerlukan konfigurasi GROQ_API_KEY. Silakan cek file .env dan pastikan API key sudah dikonfigurasi dengan benar.</p>
+                </div>
+                {% else %}
+                
+                <!-- Chat Container -->
+                <div id="chatContainer" class="border rounded p-3 mb-3" style="height: 500px; overflow-y: auto; background: #f8f9fa;">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-robot fa-3x mb-3"></i>
+                        <h5>Halo! Saya AI Analyst untuk Multi-Branch Analytics</h5>
+                        <p>Tanyakan apa saja tentang data multi-branch Anda. Saya siap membantu menganalisis performa cabang, produk, COGS, dan memberikan insights strategis.</p>
+                    </div>
+                </div>
+                
+                <!-- Chat Input -->
+                <form id="chatForm" class="d-flex">
+                    <input type="text" 
+                           id="chatInput" 
+                           class="form-control me-2" 
+                           placeholder="Tanyakan sesuatu tentang data multi-branch Anda..."
+                           autocomplete="off">
+                    <button type="submit" class="btn btn-primary" id="sendBtn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+                
+                <!-- Typing Indicator -->
+                <div id="typingIndicator" class="text-muted mt-2" style="display: none;">
+                    <i class="fas fa-robot me-2"></i>AI sedang mengetik...
+                </div>
+                
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💡 Suggested Questions</h5>
+            </div>
+            <div class="chart-body">
+                <p class="text-muted mb-3">Klik salah satu pertanyaan di bawah untuk memulai analisis:</p>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Cabang mana yang memiliki performa terbaik dan terburuk?">
+                        🏆 Cabang mana yang memiliki performa terbaik dan terburuk?
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Analisis gap performa antar cabang dan rekomendasinya">
+                        📊 Analisis gap performa antar cabang dan rekomendasinya
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Produk apa yang paling konsisten performanya di semua cabang?">
+                        🍜 Produk apa yang paling konsisten performanya di semua cabang?
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Cabang mana yang memiliki COGS paling efisien?">
+                        💰 Cabang mana yang memiliki COGS paling efisien?
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Jam berapa yang optimal untuk semua cabang?">
+                        ⏰ Jam berapa yang optimal untuk semua cabang?
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Strategi untuk meningkatkan performa cabang terlemah">
+                        🚀 Strategi untuk meningkatkan performa cabang terlemah
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Produk mana yang perlu di-standardisasi COGS-nya?">
+                        📦 Produk mana yang perlu di-standardisasi COGS-nya?
+                    </button>
+                    
+                    <button class="btn btn-outline-primary text-start suggested-question" data-question="Analisis seasonal pattern untuk semua cabang">
+                        📅 Analisis seasonal pattern untuk semua cabang
+                    </button>
+                </div>
+                
+                <hr class="my-4">
+                
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-lightbulb me-2"></i>Tips untuk Chat AI:</h6>
+                    <ul class="mb-0 small">
+                        <li>Tanyakan tentang performa spesifik cabang</li>
+                        <li>Minta analisis komparatif antar cabang</li>
+                        <li>Tanyakan rekomendasi strategis</li>
+                        <li>Minta insight tentang optimasi COGS</li>
+                        <li>Tanyakan tentang tren waktu dan pola sales</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="chart-card mt-3">
+            <div class="chart-header">
+                <h5 class="chart-title">🚀 Quick Actions</h5>
+            </div>
+            <div class="chart-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-success" id="clearChat">
+                        <i class="fas fa-trash me-2"></i>Clear Chat History
+                    </button>
+                    
+                    <a href="{{ url_for('branch_comparison') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-chart-bar me-2"></i>View Branch Analysis
+                    </a>
+                    
+                    <a href="{{ url_for('cogs_analysis') }}" class="btn btn-outline-warning">
+                        <i class="fas fa-calculator me-2"></i>COGS Optimization
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    #chatContainer {
+        background: linear-gradient(to bottom, #f8f9fa, #ffffff);
+    }
+    
+    .chat-message {
+        margin-bottom: 20px;
+        opacity: 0;
+        animation: fadeInUp 0.5s ease forwards;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .user-message {
+        text-align: right;
+    }
+    
+    .user-message .message-bubble {
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+        color: white;
+        padding: 12px 16px;
+        border-radius: 18px 18px 4px 18px;
+        display: inline-block;
+        max-width: 70%;
+        margin-left: 30%;
+        word-wrap: break-word;
+    }
+    
+    .ai-message .message-bubble {
+        background: white;
+        border: 1px solid #e9ecef;
+        padding: 12px 16px;
+        border-radius: 18px 18px 18px 4px;
+        display: inline-block;
+        max-width: 70%;
+        margin-right: 30%;
+        word-wrap: break-word;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .message-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        margin: 0 8px;
+    }
+    
+    .user-avatar {
+        background: var(--primary-color);
+        color: white;
+    }
+    
+    .ai-avatar {
+        background: var(--accent-color);
+        color: white;
+    }
+    
+    .suggested-question {
+        font-size: 0.9rem;
+        padding: 10px 12px;
+        white-space: normal;
+        text-align: left !important;
+    }
+    
+    .suggested-question:hover {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    
+    #typingIndicator {
+        font-style: italic;
+        animation: pulse 1.5s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 50%, 100% { opacity: 1; }
+        25%, 75% { opacity: 0.5; }
+    }
+    
+    .timestamp {
+        font-size: 0.75rem;
+        color: #6c757d;
+        margin-top: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const chatContainer = document.getElementById('chatContainer');
+    const sendBtn = document.getElementById('sendBtn');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const clearChatBtn = document.getElementById('clearChat');
+    const suggestedQuestions = document.querySelectorAll('.suggested-question');
+    
+    let chatHistory = [];
+    
+    // Initialize chat
+    function initializeChat() {
+        const welcomeMessage = {
+            role: 'ai',
+            content: 'Halo! Saya AI Analyst siap membantu menganalisis data multi-branch Anda. Silakan tanyakan apa saja tentang performa cabang, produk, COGS, atau minta rekomendasi strategis.',
+            timestamp: new Date()
+        };
+        addMessageToChat(welcomeMessage);
+    }
+    
+    // Add message to chat
+    function addMessageToChat(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${message.role}-message`;
+        
+        const timestamp = new Date(message.timestamp).toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        if (message.role === 'user') {
+            messageDiv.innerHTML = `
+                <div class="d-flex justify-content-end align-items-end">
+                    <div>
+                        <div class="message-bubble">${escapeHtml(message.content)}</div>
+                        <div class="timestamp text-end">${timestamp}</div>
+                    </div>
+                    <div class="message-avatar user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            `;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="d-flex align-items-end">
+                    <div class="message-avatar ai-avatar">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                    <div>
+                        <div class="message-bubble">${formatAIResponse(message.content)}</div>
+                        <div class="timestamp">${timestamp}</div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        chatContainer.appendChild(messageDiv);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+        // Add to history
+        chatHistory.push(message);
+    }
+    
+    // Format AI response with better formatting
+    function formatAIResponse(content) {
+        return content
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/\n\n/g, '</p><p>')
+            .replace(/\n/g, '<br>')
+            .replace(/^(.*)$/, '<p>$1</p>');
+    }
+    
+    // Escape HTML
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Show typing indicator
+    function showTyping() {
+        typingIndicator.style.display = 'block';
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // Hide typing indicator
+    function hideTyping() {
+        typingIndicator.style.display = 'none';
+    }
+    
+    // Send message
+    async function sendMessage(message) {
+        if (!message.trim()) return;
+        
+        // Add user message
+        const userMessage = {
+            role: 'user',
+            content: message,
+            timestamp: new Date()
+        };
+        addMessageToChat(userMessage);
+        
+        // Clear input
+        chatInput.value = '';
+        sendBtn.disabled = true;
+        showTyping();
+        
+        try {
+            // Send to backend
+            const response = await fetch('{{ url_for("chat") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `question=${encodeURIComponent(message)}`
+            });
+            
+            const data = await response.json();
+            hideTyping();
+            
+            if (data.success) {
+                const aiMessage = {
+                    role: 'ai',
+                    content: data.response,
+                    timestamp: new Date()
+                };
+                addMessageToChat(aiMessage);
+            } else {
+                const errorMessage = {
+                    role: 'ai',
+                    content: `Maaf, terjadi error: ${data.error}. Silakan coba lagi atau hubungi administrator.`,
+                    timestamp: new Date()
+                };
+                addMessageToChat(errorMessage);
+            }
+        } catch (error) {
+            hideTyping();
+            const errorMessage = {
+                role: 'ai',
+                content: 'Maaf, terjadi kesalahan koneksi. Silakan coba lagi.',
+                timestamp: new Date()
+            };
+            addMessageToChat(errorMessage);
+        }
+        
+        sendBtn.disabled = false;
+        chatInput.focus();
+    }
+    
+    // Form submit handler
+    chatForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const message = chatInput.value.trim();
+        if (message) {
+            sendMessage(message);
+        }
+    });
+    
+    // Suggested questions handler
+    suggestedQuestions.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const question = this.dataset.question;
+            chatInput.value = question;
+            sendMessage(question);
+        });
+    });
+    
+    // Clear chat handler
+    clearChatBtn.addEventListener('click', function() {
+        if (confirm('Apakah Anda yakin ingin menghapus riwayat chat?')) {
+            chatContainer.innerHTML = '';
+            chatHistory = [];
+            initializeChat();
+        }
+    });
+    
+    // Auto-focus input
+    chatInput.focus();
+    
+    // Handle Enter key
+    chatInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            chatForm.dispatchEvent(new Event('submit'));
+        }
+    });
+    
+    // Initialize chat with welcome message
+    {% if chatbot_available %}
+    // Clear the initial content and show welcome
+    chatContainer.innerHTML = '';
+    initializeChat();
+    {% endif %}
+});
+</script>
+{% endblock %}

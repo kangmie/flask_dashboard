@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Overview - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}📊 Dashboard Overview{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Dashboard Overview</li>
+{% endblock %}
+
+{% block content %}
+<!-- Key Metrics Row -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="metric-value">{{ summary_stats.total_branches }}</div>
+            <div class="metric-label">Total Cabang</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-money-bill-wave"></i>
+            </div>
+            <div class="metric-value">{{ total_revenue }}</div>
+            <div class="metric-label">Total Revenue</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="metric-value">{{ total_margin }}</div>
+            <div class="metric-label">Total Margin</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card">
+            <div class="metric-icon">
+                <i class="fas fa-percentage"></i>
+            </div>
+            <div class="metric-value">{{ gross_margin_pct }}</div>
+            <div class="metric-label">Gross Margin %</div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary Metrics Row -->
+<div class="row mb-4">
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div class="metric-value">{{ summary_stats.total_transactions | number }}</div>
+            <div class="metric-label">Total Transaksi</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-boxes"></i>
+            </div>
+            <div class="metric-value">{{ summary_stats.unique_products | number }}</div>
+            <div class="metric-label">Produk Unik</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #DC143C 0%, #B22222 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-calculator"></i>
+            </div>
+            <div class="metric-value">{{ summary_stats.avg_cogs_percentage | round(1) }}%</div>
+            <div class="metric-label">Avg COGS %</div>
+        </div>
+    </div>
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="metric-card" style="background: linear-gradient(135deg, #9370DB 0%, #8A2BE2 100%);">
+            <div class="metric-icon">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="metric-value">{{ summary_stats.avg_transaction_value | currency }}</div>
+            <div class="metric-label">Avg per Transaksi</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📊 Revenue per Cabang (Top 10)</h5>
+            </div>
+            <div class="chart-body">
+                <div id="revenue-bar-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🥧 Distribusi Revenue per Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="revenue-pie-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row 2 -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🍜 Top 10 Produk by Revenue</h5>
+            </div>
+            <div class="chart-body">
+                <div id="top-products-chart"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">💎 Matrix Performa Cabang</h5>
+            </div>
+            <div class="chart-body">
+                <div id="performance-matrix-chart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Branch Performance Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="data-table">
+            <div class="chart-header">
+                <h5 class="chart-title">🏆 Ranking Performa Cabang</h5>
+            </div>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Cabang</th>
+                            <th>Total Revenue</th>
+                            <th>Margin %</th>
+                            <th>COGS %</th>
+                            <th>Transaksi</th>
+                            <th>Avg/Transaksi</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for _, branch in branch_comparison.iterrows() %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-primary">#{{ branch.Revenue_Rank }}</span>
+                            </td>
+                            <td>
+                                <strong>{{ branch.Branch[:30] }}{% if branch.Branch|length > 30 %}...{% endif %}</strong>
+                            </td>
+                            <td>{{ branch.Total_Revenue | currency }}</td>
+                            <td>
+                                <span class="badge {% if branch.Margin_Percentage > 25 %}status-excellent{% elif branch.Margin_Percentage > 20 %}status-good{% elif branch.Margin_Percentage > 15 %}status-fair{% else %}status-poor{% endif %}">
+                                    {{ branch.Margin_Percentage | percentage }}
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge {% if branch.COGS_Percentage < 30 %}status-excellent{% elif branch.COGS_Percentage < 40 %}status-good{% elif branch.COGS_Percentage < 50 %}status-fair{% else %}status-poor{% endif %}">
+                                    {{ branch.COGS_Percentage | percentage }}
+                                </span>
+                            </td>
+                            <td>{{ branch.Transaction_Count | number }}</td>
+                            <td>{{ branch.Avg_Transaction | currency }}</td>
+                            <td>
+                                {% if branch.Revenue_Rank <= 3 %}
+                                    <span class="badge status-excellent">Top Performer</span>
+                                {% elif branch.Revenue_Rank <= summary_stats.total_branches // 2 %}
+                                    <span class="badge status-good">Above Average</span>
+                                {% elif branch.Revenue_Rank <= summary_stats.total_branches * 0.8 %}
+                                    <span class="badge status-fair">Average</span>
+                                {% else %}
+                                    <span class="badge status-poor">Needs Attention</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">🚀 Quick Actions</h5>
+            </div>
+            <div class="chart-body">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('branch_comparison') }}" class="btn btn-primary w-100">
+                            <i class="fas fa-building me-2"></i>Analisis Cabang Detail
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('product_analysis') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-boxes me-2"></i>Analisis Produk
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('cogs_analysis') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-calculator me-2"></i>Optimasi COGS
+                        </a>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <a href="{{ url_for('chat') }}" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-robot me-2"></i>Chat dengan AI
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Revenue Bar Chart
+    const revenueBarData = {{ charts_data.revenue_bar | safe }};
+    Plotly.newPlot('revenue-bar-chart', revenueBarData.data, revenueBarData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Revenue Pie Chart
+    const revenuePieData = {{ charts_data.revenue_pie | safe }};
+    Plotly.newPlot('revenue-pie-chart', revenuePieData.data, revenuePieData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Top Products Chart
+    const topProductsData = {{ charts_data.top_products | safe }};
+    Plotly.newPlot('top-products-chart', topProductsData.data, topProductsData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Performance Matrix Chart
+    const performanceMatrixData = {{ charts_data.performance_matrix | safe }};
+    Plotly.newPlot('performance-matrix-chart', performanceMatrixData.data, performanceMatrixData.layout, {
+        responsive: true,
+        displayModeBar: false
+    });
+    
+    // Auto-refresh data every 5 minutes
+    setInterval(function() {
+        // You can add auto-refresh logic here if needed
+        console.log('Auto-refresh check...');
+    }, 300000); // 5 minutes
+});
+</script>
+{% endblock %}

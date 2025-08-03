@@ -1,0 +1,372 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Data - Multi-Branch Analytics{% endblock %}
+
+{% block page_title %}📁 Upload Data Multi-Branch{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Upload Data</li>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📤 Upload File Excel Multi-Branch</h5>
+            </div>
+            <div class="chart-body">
+                <!-- Upload Instructions -->
+                <div class="alert alert-info mb-4">
+                    <h6><i class="fas fa-info-circle me-2"></i>Instruksi Upload:</h6>
+                    <ul class="mb-0">
+                        <li>Upload satu file Excel (.xlsx/.xls) per cabang</li>
+                        <li>Nama cabang harus berada di cell A2</li>
+                        <li>Header kolom harus berada di baris 14 (A14-O14)</li>
+                        <li>Data dimulai dari baris 15 (A15-O15 dst)</li>
+                        <li>Maksimal ukuran file: 50MB per file</li>
+                    </ul>
+                </div>
+                
+                <!-- Upload Form -->
+                <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <div class="upload-area" id="uploadArea">
+                        <i class="fas fa-cloud-upload-alt fa-3x mb-3" style="color: var(--primary-color);"></i>
+                        <h5>Drag & Drop Files atau Klik untuk Browse</h5>
+                        <p class="text-muted">Pilih multiple file Excel dari berbagai cabang</p>
+                        <input type="file" 
+                               id="fileInput" 
+                               name="files[]" 
+                               multiple 
+                               accept=".xlsx,.xls"
+                               style="display: none;">
+                        <button type="button" class="btn btn-primary mt-3" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-folder-open me-2"></i>Browse Files
+                        </button>
+                    </div>
+                    
+                    <!-- Selected Files List -->
+                    <div id="selectedFiles" class="mt-4" style="display: none;">
+                        <h6><i class="fas fa-list me-2"></i>File yang Dipilih:</h6>
+                        <div id="filesList" class="list-group"></div>
+                    </div>
+                    
+                    <!-- Upload Button -->
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn" disabled>
+                            <i class="fas fa-upload me-2"></i>Upload & Proses Data
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Progress Bar -->
+                <div id="uploadProgress" class="mt-4" style="display: none;">
+                    <h6>Processing Files...</h6>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                             role="progressbar" 
+                             style="width: 0%"></div>
+                    </div>
+                    <p class="mt-2 text-muted" id="progressText">Preparing upload...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sample Data Format -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📋 Format Data yang Diharapkan</h5>
+            </div>
+            <div class="chart-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-table me-2"></i>Struktur File Excel:</h6>
+                        <ul>
+                            <li><strong>Cell A2:</strong> Nama Cabang (contoh: "Ramen Master Yogyakarta")</li>
+                            <li><strong>Baris 14:</strong> Header kolom (A14-O14)</li>
+                            <li><strong>Baris 15+:</strong> Data penjualan</li>
+                        </ul>
+                        
+                        <h6 class="mt-4"><i class="fas fa-columns me-2"></i>Kolom yang Diperlukan:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Kolom</th>
+                                        <th>Nama Field</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td>A</td><td>Sales Number</td></tr>
+                                    <tr><td>B</td><td>Sales Date</td></tr>
+                                    <tr><td>C</td><td>Sales Type</td></tr>
+                                    <tr><td>D</td><td>Branch</td></tr>
+                                    <tr><td>E</td><td>Menu</td></tr>
+                                    <tr><td>F</td><td>Menu Code</td></tr>
+                                    <tr><td>G</td><td>Menu Category</td></tr>
+                                    <tr><td>H</td><td>Menu Category Detail</td></tr>
+                                    <tr><td>I</td><td>Qty</td></tr>
+                                    <tr><td>J</td><td>Price</td></tr>
+                                    <tr><td>K</td><td>Total</td></tr>
+                                    <tr><td>L</td><td>Discount Total</td></tr>
+                                    <tr><td>M</td><td>COGS Total</td></tr>
+                                    <tr><td>N</td><td>COGS Total (%)</td></tr>
+                                    <tr><td>O</td><td>Margin</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check-circle me-2"></i>Tips untuk Upload Sukses:</h6>
+                        <div class="alert alert-success">
+                            <ul class="mb-0">
+                                <li>Pastikan nama cabang di A2 unik untuk setiap file</li>
+                                <li>Format tanggal harus konsisten</li>
+                                <li>Kolom numerik (Qty, Price, Total, dll) harus berisi angka</li>
+                                <li>Jangan ada baris kosong di tengah data</li>
+                                <li>Nama menu dan kategori harus lengkap</li>
+                            </ul>
+                        </div>
+                        
+                        <h6 class="mt-4"><i class="fas fa-exclamation-triangle me-2"></i>Troubleshooting:</h6>
+                        <div class="alert alert-warning">
+                            <ul class="mb-0">
+                                <li>Jika upload gagal, cek format tanggal dan data numerik</li>
+                                <li>Pastikan file tidak corrupt atau password protected</li>
+                                <li>Coba upload satu file dulu untuk test</li>
+                                <li>Maksimal 20 file dalam sekali upload</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .file-item {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 10px 15px;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .file-item .file-info {
+        display: flex;
+        align-items: center;
+    }
+    
+    .file-item .file-icon {
+        color: var(--success-color);
+        margin-right: 10px;
+    }
+    
+    .file-item .remove-file {
+        color: var(--danger-color);
+        cursor: pointer;
+        padding: 5px;
+    }
+    
+    .file-item .remove-file:hover {
+        background: #f8d7da;
+        border-radius: 4px;
+    }
+    
+    .upload-area.dragover {
+        border-color: var(--accent-color) !important;
+        background: #e8f5f5 !important;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const selectedFiles = document.getElementById('selectedFiles');
+    const filesList = document.getElementById('filesList');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadProgress = document.getElementById('uploadProgress');
+    const uploadForm = document.getElementById('uploadForm');
+    
+    let filesArray = [];
+    
+    // Click to browse
+    uploadArea.addEventListener('click', function(e) {
+        if (e.target === uploadArea || e.target.tagName === 'I' || e.target.tagName === 'H5' || e.target.tagName === 'P') {
+            fileInput.click();
+        }
+    });
+    
+    // Drag and drop functionality
+    uploadArea.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+    
+    uploadArea.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+    
+    uploadArea.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files);
+        handleFiles(files);
+    });
+    
+    // File input change
+    fileInput.addEventListener('change', function(e) {
+        const files = Array.from(e.target.files);
+        handleFiles(files);
+    });
+    
+    function handleFiles(files) {
+        // Filter Excel files
+        const excelFiles = files.filter(file => {
+            const extension = file.name.split('.').pop().toLowerCase();
+            return ['xlsx', 'xls'].includes(extension);
+        });
+        
+        if (excelFiles.length === 0) {
+            alert('Silakan pilih file Excel (.xlsx atau .xls)');
+            return;
+        }
+        
+        // Add to files array
+        excelFiles.forEach(file => {
+            // Check if file already exists
+            const exists = filesArray.some(f => f.name === file.name && f.size === file.size);
+            if (!exists) {
+                filesArray.push(file);
+            }
+        });
+        
+        updateFilesList();
+        updateUploadButton();
+    }
+    
+    function updateFilesList() {
+        if (filesArray.length === 0) {
+            selectedFiles.style.display = 'none';
+            return;
+        }
+        
+        selectedFiles.style.display = 'block';
+        filesList.innerHTML = '';
+        
+        filesArray.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            
+            fileItem.innerHTML = `
+                <div class="file-info">
+                    <i class="fas fa-file-excel file-icon"></i>
+                    <div>
+                        <strong>${file.name}</strong>
+                        <br>
+                        <small class="text-muted">${fileSize} MB</small>
+                    </div>
+                </div>
+                <i class="fas fa-times remove-file" onclick="removeFile(${index})" title="Remove file"></i>
+            `;
+            
+            filesList.appendChild(fileItem);
+        });
+    }
+    
+    window.removeFile = function(index) {
+        filesArray.splice(index, 1);
+        updateFilesList();
+        updateUploadButton();
+        updateFileInput();
+    }
+    
+    function updateFileInput() {
+        // Create new FileList
+        const dt = new DataTransfer();
+        filesArray.forEach(file => dt.items.add(file));
+        fileInput.files = dt.files;
+    }
+    
+    function updateUploadButton() {
+        uploadBtn.disabled = filesArray.length === 0;
+    }
+    
+    // Form submission
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (filesArray.length === 0) {
+            alert('Silakan pilih file untuk diupload');
+            return;
+        }
+        
+        // Show progress
+        uploadProgress.style.display = 'block';
+        uploadBtn.disabled = true;
+        
+        // Create FormData
+        const formData = new FormData();
+        filesArray.forEach(file => {
+            formData.append('files[]', file);
+        });
+        
+        // Upload with progress
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                const progressBar = document.querySelector('.progress-bar');
+                const progressText = document.getElementById('progressText');
+                
+                progressBar.style.width = percentComplete + '%';
+                progressText.textContent = `Uploading... ${Math.round(percentComplete)}%`;
+            }
+        });
+        
+        xhr.addEventListener('load', function() {
+            if (xhr.status === 200) {
+                // Success - redirect will happen automatically
+                document.getElementById('progressText').textContent = 'Upload successful! Redirecting...';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                // Error
+                uploadProgress.style.display = 'none';
+                uploadBtn.disabled = false;
+                alert('Upload failed. Please try again.');
+            }
+        });
+        
+        xhr.addEventListener('error', function() {
+            uploadProgress.style.display = 'none';
+            uploadBtn.disabled = false;
+            alert('Upload failed. Please check your connection and try again.');
+        });
+        
+        xhr.open('POST', '{{ url_for("upload_files") }}');
+        xhr.send(formData);
+    });
+});
+</script>
+{% endblock %}
