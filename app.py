@@ -88,6 +88,13 @@ def safe_divide(numerator, denominator):
     except (ValueError, TypeError, ZeroDivisionError):
         return 0
 
+def safe_df_check(data):
+    """Safely check if dataframe is empty or None."""
+    try:
+        return data is not None and not data.empty
+    except Exception:
+        return False
+
 @app.route('/')
 def index():
     """Main dashboard page."""
@@ -95,12 +102,8 @@ def index():
     
     print("🔍 Dashboard route accessed")
     
-    if analyzer is None or current_data is None:
+    if analyzer is None or not safe_df_check(current_data):
         print("❌ No data available, redirecting to upload")
-        return redirect(url_for('upload_files'))
-    
-    if current_data.empty:
-        print("❌ Data is empty, redirecting to upload")
         return redirect(url_for('upload_files'))
     
     try:
@@ -187,7 +190,7 @@ def upload_files():
                 
                 current_data = analyzer.load_multiple_files(processed_files)
                 
-                if current_data.empty:
+                if not safe_df_check(current_data):
                     flash('No valid data found in uploaded files. Please check file format.')
                     return redirect(url_for('upload_files'))
                 
@@ -208,7 +211,6 @@ def upload_files():
                         os.remove(file_path)
                 
                 flash(f'Successfully loaded {len(uploaded_files)} files with {len(current_data)} records!')
-                # LANGSUNG REDIRECT KE DASHBOARD SETELAH UPLOAD BERHASIL
                 return redirect(url_for('index'))
                 
             except Exception as e:
@@ -232,7 +234,7 @@ def branch_comparison():
     
     print("🏢 Branch comparison route accessed")
     
-    if analyzer is None or current_data is None or current_data.empty:
+    if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
     
@@ -260,7 +262,7 @@ def product_analysis():
     
     print("📦 Product analysis route accessed")
     
-    if analyzer is None or current_data is None or current_data.empty:
+    if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
     
@@ -268,7 +270,7 @@ def product_analysis():
         print("📊 Getting product comparison data...")
         product_comparison = analyzer.get_product_comparison_by_branch(20)
         
-        if product_comparison.empty:
+        if not safe_df_check(product_comparison):
             flash('No product data available for analysis.')
             return redirect(url_for('index'))
         
@@ -306,7 +308,7 @@ def sales_by_time():
     
     print("⏰ Sales by time route accessed")
     
-    if analyzer is None or current_data is None or current_data.empty:
+    if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
     
@@ -334,7 +336,7 @@ def cogs_analysis():
     
     print("💰 COGS analysis route accessed")
     
-    if analyzer is None or current_data is None or current_data.empty:
+    if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
     
@@ -342,7 +344,7 @@ def cogs_analysis():
         print("📊 Getting COGS analysis data...")
         cogs_data = analyzer.get_cogs_per_product_per_branch(15)
         
-        if cogs_data.empty:
+        if not safe_df_check(cogs_data):
             flash('No COGS data available for analysis.')
             return redirect(url_for('index'))
         
@@ -418,7 +420,7 @@ def create_dashboard_charts():
         print("📊 Creating revenue comparison chart...")
         branch_comparison = analyzer.get_branch_revenue_comparison()
         
-        if branch_comparison.empty:
+        if not safe_df_check(branch_comparison):
             print("❌ No branch data for charts")
             return {}
         
@@ -431,14 +433,13 @@ def create_dashboard_charts():
             x='Branch',
             y='Total_Revenue',
             title='📊 Revenue per Cabang (Top 10)',
-            color='Total_Revenue',
-            color_continuous_scale='Viridis',
             text='Total_Revenue'
         )
         fig_revenue.update_traces(
             texttemplate='%{text:,.0f}', 
             textposition='outside',
-            textfont_size=10
+            textfont_size=10,
+            marker_color='rgba(0, 139, 139, 0.8)'  # Fixed color instead of colorscale
         )
         fig_revenue.update_layout(
             height=400,
@@ -464,30 +465,35 @@ def create_dashboard_charts():
         charts['revenue_pie'] = json.dumps(fig_pie, cls=plotly.utils.PlotlyJSONEncoder)
         
         print("💎 Creating performance matrix...")
-        # Performance matrix
-        fig_scatter = px.scatter(
-            branch_comparison,
-            x='Total_Revenue',
-            y='Margin_Percentage',
-            size='Transaction_Count',
-            color='COGS_Percentage',
-            hover_data=['Branch', 'Total_Margin', 'Avg_Transaction'],
+        # Performance matrix - simplified without size parameter issues
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=branch_comparison['Total_Revenue'],
+            y=branch_comparison['Margin_Percentage'],
+            mode='markers',
+            marker=dict(
+                size=10,
+                color=branch_comparison['COGS_Percentage'],
+                colorscale='RdYlBu_r',
+                showscale=True,
+                colorbar=dict(title="COGS (%)")
+            ),
+            text=branch_comparison['Branch'],
+            hovertemplate='<b>%{text}</b><br>Revenue: %{x:,.0f}<br>Margin: %{y:.1f}%<extra></extra>'
+        ))
+        fig_scatter.update_layout(
             title='💎 Matrix Performa Cabang (Revenue vs Margin)',
-            labels={
-                'Total_Revenue': 'Total Revenue (Rp)',
-                'Margin_Percentage': 'Margin (%)',
-                'COGS_Percentage': 'COGS (%)',
-                'Transaction_Count': 'Transactions'
-            }
+            xaxis_title='Total Revenue (Rp)',
+            yaxis_title='Margin (%)',
+            height=400
         )
-        fig_scatter.update_layout(height=400)
         charts['performance_matrix'] = json.dumps(fig_scatter, cls=plotly.utils.PlotlyJSONEncoder)
         
         print("🍜 Creating top products chart...")
         # Top products
         try:
             product_comparison = analyzer.get_product_comparison_by_branch(10)
-            if not product_comparison.empty:
+            if safe_df_check(product_comparison):
                 top_products = product_comparison.groupby('Menu').agg({
                     'Qty': 'sum',
                     'Total': 'sum'
@@ -498,14 +504,13 @@ def create_dashboard_charts():
                     x='Menu',
                     y='Total',
                     title='🍜 Top 10 Produk by Revenue',
-                    color='Total',
-                    color_continuous_scale='Plasma',
                     text='Total'
                 )
                 fig_products.update_traces(
                     texttemplate='%{text:,.0f}', 
                     textposition='outside',
-                    textfont_size=10
+                    textfont_size=10,
+                    marker_color='rgba(255, 140, 0, 0.8)'  # Fixed color
                 )
                 fig_products.update_layout(
                     height=400,
@@ -532,7 +537,7 @@ def create_branch_comparison_charts(branch_data):
     charts = {}
     
     try:
-        if branch_data.empty:
+        if not safe_df_check(branch_data):
             print("❌ No branch data for comparison charts")
             return charts
         
@@ -546,14 +551,13 @@ def create_branch_comparison_charts(branch_data):
             x='Branch',
             y='Total_Revenue',
             title='💰 Total Revenue per Cabang',
-            color='Total_Revenue',
-            color_continuous_scale='Viridis',
             text='Total_Revenue'
         )
         fig_revenue.update_traces(
             texttemplate='%{text:,.0f}', 
             textposition='outside',
-            textfont_size=10
+            textfont_size=10,
+            marker_color='rgba(0, 139, 139, 0.8)'  # Fixed color
         )
         fig_revenue.update_layout(
             height=500,
@@ -566,26 +570,28 @@ def create_branch_comparison_charts(branch_data):
         charts['revenue_comparison'] = json.dumps(fig_revenue, cls=plotly.utils.PlotlyJSONEncoder)
         
         print("💹 Creating margin vs COGS scatter...")
-        # Chart 2: Margin vs COGS scatter plot
-        fig_margin_cogs = px.scatter(
-            branch_data,
-            x='COGS_Percentage',
-            y='Margin_Percentage',
-            size='Total_Revenue',
-            color='Branch',
+        # Chart 2: Margin vs COGS scatter plot - fixed version
+        fig_margin_cogs = go.Figure()
+        fig_margin_cogs.add_trace(go.Scatter(
+            x=branch_data['COGS_Percentage'],
+            y=branch_data['Margin_Percentage'],
+            mode='markers',
+            marker=dict(
+                size=12,
+                color=branch_data['Total_Revenue'],
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="Revenue (Rp)")
+            ),
+            text=branch_data['Branch'],
+            hovertemplate='<b>%{text}</b><br>COGS: %{x:.1f}%<br>Margin: %{y:.1f}%<extra></extra>'
+        ))
+        fig_margin_cogs.update_layout(
             title='📊 Margin vs COGS per Cabang',
-            labels={
-                'COGS_Percentage': 'COGS (%)', 
-                'Margin_Percentage': 'Margin (%)',
-                'Total_Revenue': 'Revenue (Rp)'
-            },
-            hover_data={
-                'Total_Revenue': ':,.0f',
-                'Transaction_Count': ':,',
-                'Avg_Transaction': ':,.0f'
-            }
+            xaxis_title='COGS (%)',
+            yaxis_title='Margin (%)',
+            height=500
         )
-        fig_margin_cogs.update_layout(height=500)
         charts['margin_cogs'] = json.dumps(fig_margin_cogs, cls=plotly.utils.PlotlyJSONEncoder)
         
         print("⚡ Creating efficiency chart...")
@@ -601,14 +607,13 @@ def create_branch_comparison_charts(branch_data):
             x='Branch',
             y='Revenue_per_Transaction',
             title='⚡ Efisiensi Revenue per Transaksi',
-            color='Revenue_per_Transaction',
-            color_continuous_scale='RdYlBu_r',
             text='Revenue_per_Transaction'
         )
         fig_efficiency.update_traces(
             texttemplate='%{text:,.0f}', 
             textposition='outside',
-            textfont_size=10
+            textfont_size=10,
+            marker_color='rgba(255, 165, 0, 0.8)'  # Fixed color
         )
         fig_efficiency.update_layout(
             height=500,
@@ -633,31 +638,9 @@ def create_product_analysis_charts(product_data, top_products):
     charts = {}
     
     try:
-        if product_data.empty or top_products.empty:
+        if not safe_df_check(product_data) or not safe_df_check(top_products):
             print("❌ No product data for analysis charts")
             return charts
-        
-        print("🔥 Creating product heatmap...")
-        # Product revenue heatmap (top 15 for performance)
-        top_15_products = top_products.head(15)['Menu'].tolist()
-        filtered_product_data = product_data[product_data['Menu'].isin(top_15_products)]
-        
-        if not filtered_product_data.empty:
-            product_revenue_pivot = filtered_product_data.pivot(
-                index='Menu',
-                columns='Branch',
-                values='Total'
-            ).fillna(0)
-            
-            fig_heatmap = px.imshow(
-                product_revenue_pivot,
-                title='🔥 Heatmap Revenue Produk per Cabang (Top 15)',
-                aspect='auto',
-                color_continuous_scale='YlOrRd',
-                labels={'color': 'Revenue (Rp)'}
-            )
-            fig_heatmap.update_layout(height=600)
-            charts['product_heatmap'] = json.dumps(fig_heatmap, cls=plotly.utils.PlotlyJSONEncoder)
         
         print("💰 Creating top revenue products chart...")
         # Top products by revenue
@@ -667,14 +650,13 @@ def create_product_analysis_charts(product_data, top_products):
             x='Menu',
             y='Total',
             title='💰 Top 15 Produk by Revenue',
-            color='Total',
-            color_continuous_scale='Viridis',
             text='Total'
         )
         fig_top_revenue.update_traces(
             texttemplate='%{text:,.0f}', 
             textposition='outside',
-            textfont_size=9
+            textfont_size=9,
+            marker_color='rgba(0, 139, 139, 0.8)'  # Fixed color
         )
         fig_top_revenue.update_layout(
             height=600,
@@ -692,14 +674,13 @@ def create_product_analysis_charts(product_data, top_products):
             x='Menu',
             y='Qty',
             title='📦 Top 15 Produk by Quantity',
-            color='Qty',
-            color_continuous_scale='Plasma',
             text='Qty'
         )
         fig_top_qty.update_traces(
             texttemplate='%{text:,}', 
             textposition='outside',
-            textfont_size=9
+            textfont_size=9,
+            marker_color='rgba(255, 140, 0, 0.8)'  # Fixed color
         )
         fig_top_qty.update_layout(
             height=600,
@@ -723,7 +704,7 @@ def create_time_analysis_charts(time_data):
     
     try:
         # Hourly heatmap
-        if 'hourly' in time_data and not time_data['hourly'].empty:
+        if 'hourly' in time_data and safe_df_check(time_data['hourly']):
             print("🔥 Creating hourly heatmap...")
             hourly_pivot = time_data['hourly'].pivot(
                 index='Hour',
@@ -753,8 +734,8 @@ def create_time_analysis_charts(time_data):
                 markers=True
             )
             fig_hourly_avg.update_traces(
-                line=dict(width=3),
-                marker=dict(size=8)
+                line=dict(width=3, color='rgba(0, 139, 139, 0.8)'),
+                marker=dict(size=8, color='rgba(255, 140, 0, 0.8)')
             )
             fig_hourly_avg.update_layout(
                 xaxis_title='Jam',
@@ -764,7 +745,7 @@ def create_time_analysis_charts(time_data):
             charts['hourly_average'] = json.dumps(fig_hourly_avg, cls=plotly.utils.PlotlyJSONEncoder)
         
         # Daily pattern
-        if 'daily_pattern' in time_data and not time_data['daily_pattern'].empty:
+        if 'daily_pattern' in time_data and safe_df_check(time_data['daily_pattern']):
             print("📊 Creating daily pattern chart...")
             daily_comparison = time_data['daily_pattern'].groupby('Day_of_Week')['Total_Revenue'].sum().reset_index()
             
@@ -779,16 +760,18 @@ def create_time_analysis_charts(time_data):
                 x='Day_of_Week',
                 y='Total_Revenue',
                 title='📊 Total Penjualan per Hari (Semua Cabang)',
-                color='Total_Revenue',
-                color_continuous_scale='Viridis',
                 text='Total_Revenue'
             )
-            fig_daily.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+            fig_daily.update_traces(
+                texttemplate='%{text:,.0f}', 
+                textposition='outside',
+                marker_color='rgba(0, 139, 139, 0.8)'  # Fixed color
+            )
             fig_daily.update_layout(height=400, showlegend=False)
             charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
         
         # MONTHLY TREND dengan date range sesuai data
-        if 'monthly' in time_data and not time_data['monthly'].empty:
+        if 'monthly' in time_data and safe_df_check(time_data['monthly']):
             print("📅 Creating monthly trend chart...")
             monthly_data = time_data['monthly']
             
@@ -841,7 +824,7 @@ def create_cogs_analysis_charts(cogs_data, branch_cogs):
     charts = {}
     
     try:
-        if cogs_data.empty or branch_cogs.empty:
+        if not safe_df_check(cogs_data) or not safe_df_check(branch_cogs):
             print("❌ No COGS data for analysis charts")
             return charts
         
@@ -850,7 +833,7 @@ def create_cogs_analysis_charts(cogs_data, branch_cogs):
         top_products = cogs_data.groupby('Menu')['Total'].sum().nlargest(15).index
         filtered_cogs = cogs_data[cogs_data['Menu'].isin(top_products)]
         
-        if not filtered_cogs.empty:
+        if safe_df_check(filtered_cogs):
             cogs_pivot = filtered_cogs.pivot(
                 index='Menu',
                 columns='Branch',
@@ -875,11 +858,13 @@ def create_cogs_analysis_charts(cogs_data, branch_cogs):
             x='Branch',
             y='COGS_Efficiency',
             title='📊 Efisiensi COGS per Cabang',
-            color='COGS_Efficiency',
-            color_continuous_scale='RdYlGn',
             text='COGS_Efficiency'
         )
-        fig_branch_cogs.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
+        fig_branch_cogs.update_traces(
+            texttemplate='%{text:.1f}%', 
+            textposition='outside',
+            marker_color='rgba(50, 205, 50, 0.8)'  # Fixed color
+        )
         fig_branch_cogs.update_layout(
             height=500,
             margin=dict(l=20, r=20, t=40, b=120),
@@ -898,7 +883,7 @@ def create_cogs_analysis_charts(cogs_data, branch_cogs):
             (product_cogs_stats['mean'] > 0)
         ]
         
-        if not product_cogs_stats.empty:
+        if safe_df_check(product_cogs_stats):
             product_cogs_stats['CV'] = product_cogs_stats['std'] / product_cogs_stats['mean']
             product_cogs_stats = product_cogs_stats.sort_values('CV', ascending=False).head(15)
             
@@ -907,11 +892,13 @@ def create_cogs_analysis_charts(cogs_data, branch_cogs):
                 x='Menu',
                 y='CV',
                 title='📊 Top 15 Produk dengan Variasi COGS Tertinggi',
-                color='CV',
-                color_continuous_scale='Reds',
                 text='CV'
             )
-            fig_cogs_variance.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            fig_cogs_variance.update_traces(
+                texttemplate='%{text:.2f}', 
+                textposition='outside',
+                marker_color='rgba(220, 20, 60, 0.8)'  # Fixed color
+            )
             fig_cogs_variance.update_layout(
                 height=600,
                 margin=dict(l=20, r=20, t=40, b=150),
@@ -988,7 +975,7 @@ def debug_status():
     """Debug route untuk check system status."""
     status = {
         'analyzer_loaded': analyzer is not None,
-        'data_loaded': current_data is not None and not current_data.empty if current_data is not None else False,
+        'data_loaded': safe_df_check(current_data),
         'chatbot_loaded': chatbot is not None,
         'templates_dir': os.path.abspath(app.template_folder),
         'templates_exist': os.path.exists(app.template_folder),
@@ -999,7 +986,7 @@ def debug_status():
     if os.path.exists(app.template_folder):
         status['template_files'] = [f for f in os.listdir(app.template_folder) if f.endswith('.html')]
     
-    if analyzer and current_data is not None and not current_data.empty:
+    if analyzer and safe_df_check(current_data):
         status['data_summary'] = {
             'total_records': len(current_data),
             'branches': len(analyzer.branches),
@@ -1030,7 +1017,7 @@ if __name__ == '__main__':
     
     if missing_templates:
         print(f"❌ Missing template files: {missing_templates}")
-        print("Please run: python setup_templates.py")
+        print("Please make sure all template files are in the templates folder")
     else:
         print("✅ All required template files found")
     

@@ -107,7 +107,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h5>Avg COGS %</h5>
-                        <h3>{{ summary_stats.avg_cogs_percentage | round(1) if summary_stats else 0 }}%</h3>
+                        <h3>{{ (summary_stats.avg_cogs_percentage | round(1)) if summary_stats else 0 }}%</h3>
                     </div>
                     <div>
                         <i class="fas fa-calculator fa-2x"></i>
@@ -217,8 +217,8 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for index in range(branch_comparison|length) %}
-                                {% set branch = branch_comparison.iloc[index] %}
+                            {% for i in range(branch_comparison|length) %}
+                                {% set branch = branch_comparison.iloc[i] %}
                                 <tr>
                                     <td>
                                         <span class="badge bg-primary">{{ branch.Revenue_Rank }}</span>
@@ -228,35 +228,39 @@
                                     </td>
                                     <td>{{ branch.Total_Revenue | currency }}</td>
                                     <td>
-                                        {% if branch.Margin_Percentage > 25 %}
-                                            <span class="badge bg-success">{{ branch.Margin_Percentage | percentage }}</span>
-                                        {% elif branch.Margin_Percentage > 20 %}
-                                            <span class="badge bg-info">{{ branch.Margin_Percentage | percentage }}</span>
-                                        {% elif branch.Margin_Percentage > 15 %}
-                                            <span class="badge bg-warning">{{ branch.Margin_Percentage | percentage }}</span>
+                                        {% set margin_pct = branch.Margin_Percentage %}
+                                        {% if margin_pct > 25 %}
+                                            <span class="badge bg-success">{{ margin_pct | percentage }}</span>
+                                        {% elif margin_pct > 20 %}
+                                            <span class="badge bg-info">{{ margin_pct | percentage }}</span>
+                                        {% elif margin_pct > 15 %}
+                                            <span class="badge bg-warning">{{ margin_pct | percentage }}</span>
                                         {% else %}
-                                            <span class="badge bg-danger">{{ branch.Margin_Percentage | percentage }}</span>
+                                            <span class="badge bg-danger">{{ margin_pct | percentage }}</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if branch.COGS_Percentage < 30 %}
-                                            <span class="badge bg-success">{{ branch.COGS_Percentage | percentage }}</span>
-                                        {% elif branch.COGS_Percentage < 40 %}
-                                            <span class="badge bg-info">{{ branch.COGS_Percentage | percentage }}</span>
-                                        {% elif branch.COGS_Percentage < 50 %}
-                                            <span class="badge bg-warning">{{ branch.COGS_Percentage | percentage }}</span>
+                                        {% set cogs_pct = branch.COGS_Percentage %}
+                                        {% if cogs_pct < 30 %}
+                                            <span class="badge bg-success">{{ cogs_pct | percentage }}</span>
+                                        {% elif cogs_pct < 40 %}
+                                            <span class="badge bg-info">{{ cogs_pct | percentage }}</span>
+                                        {% elif cogs_pct < 50 %}
+                                            <span class="badge bg-warning">{{ cogs_pct | percentage }}</span>
                                         {% else %}
-                                            <span class="badge bg-danger">{{ branch.COGS_Percentage | percentage }}</span>
+                                            <span class="badge bg-danger">{{ cogs_pct | percentage }}</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ branch.Transaction_Count | number }}</td>
                                     <td>{{ branch.Avg_Transaction | currency }}</td>
                                     <td>
-                                        {% if branch.Revenue_Rank <= 3 %}
+                                        {% set rank = branch.Revenue_Rank %}
+                                        {% set total_branches = summary_stats.total_branches if summary_stats else 5 %}
+                                        {% if rank <= 3 %}
                                             <span class="badge bg-success">Top Performer</span>
-                                        {% elif branch.Revenue_Rank <= (summary_stats.total_branches // 2) if summary_stats else 5 %}
+                                        {% elif rank <= (total_branches // 2) %}
                                             <span class="badge bg-info">Above Average</span>
-                                        {% elif branch.Revenue_Rank <= ((summary_stats.total_branches * 0.8) if summary_stats else 8) %}
+                                        {% elif rank <= (total_branches * 0.8) %}
                                             <span class="badge bg-warning">Average</span>
                                         {% else %}
                                             <span class="badge bg-danger">Needs Attention</span>
