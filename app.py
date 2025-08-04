@@ -332,88 +332,347 @@ def product_analysis():
 
 # REPLACE HANYA BAGIAN INI di app.py Anda
 
+# @app.route('/sales-by-time')
+# def sales_by_time():
+#     """Sales by time analysis page - MINIMAL VERSION."""
+#     global analyzer, current_data
+    
+#     print("⏰ Sales by time route accessed - MINIMAL VERSION")
+    
+#     if analyzer is None or not safe_df_check(current_data):
+#         flash('No data available. Please upload files first.')
+#         return redirect(url_for('upload_files'))
+    
+#     try:
+#         print("📊 Getting basic time data...")
+        
+#         # Create MINIMAL time_data without complex processing
+#         time_analysis = {
+#             'daily_pattern': pd.DataFrame(),
+#             'daily_trend': pd.DataFrame(), 
+#             'monthly': pd.DataFrame()
+#         }
+        
+#         # Try to get simple time data if possible
+#         try:
+#             actual_time_data = analyzer.get_sales_by_time_all_branches()
+#             if actual_time_data:
+#                 time_analysis = actual_time_data
+#         except Exception as e:
+#             print(f"⚠️ Could not get full time data: {e}")
+#             # Use empty data - that's fine!
+        
+#         print("📈 Creating EMPTY charts (safe)...")
+#         # Create completely empty/minimal charts
+#         charts = {
+#             'daily_pattern': json.dumps({
+#                 'data': [],
+#                 'layout': {'title': 'Daily Pattern (Data akan ditampilkan setelah processing)'}
+#             }),
+#             'branch_trends': json.dumps({
+#                 'data': [],
+#                 'layout': {'title': 'Branch Trends (Data akan ditampilkan setelah processing)'}
+#             }),
+#             'monthly_comparison': json.dumps({
+#                 'data': [],
+#                 'layout': {'title': 'Monthly Comparison (Data akan ditampilkan setelah processing)'}
+#             })
+#         }
+        
+#         print("✅ Rendering sales by time template with minimal data...")
+#         return render_template('sales_by_time.html',
+#                              time_data=time_analysis,
+#                              charts=charts)
+                             
+#     except Exception as e:
+#         print(f"❌ STILL Error in sales by time: {str(e)}")
+#         print(f"Traceback: {traceback.format_exc()}")
+        
+#         # FORCE SUCCESS - return template with empty data
+#         print("🔄 FORCING template render with empty data...")
+#         empty_time_data = {
+#             'daily_pattern': pd.DataFrame(),
+#             'daily_trend': pd.DataFrame(),
+#             'monthly': pd.DataFrame()
+#         }
+#         empty_charts = {
+#             'daily_pattern': '{}',
+#             'branch_trends': '{}', 
+#             'monthly_comparison': '{}'
+#         }
+        
+#         try:
+#             return render_template('sales_by_time.html',
+#                                  time_data=empty_time_data,
+#                                  charts=empty_charts)
+#         except Exception as template_error:
+#             print(f"❌ Template error: {template_error}")
+#             # Last resort - show simple message
+#             return f"""
+#             <h1>Sales by Time</h1>
+#             <p>Page is being loaded. Time analysis will be available soon.</p>
+#             <p><a href="{url_for('index')}">Back to Dashboard</a></p>
+#             <p>Debug: {str(e)}</p>
+#             """
+
+# REPLACE the existing sales_by_time route in your app.py with this fixed version:
+
 @app.route('/sales-by-time')
 def sales_by_time():
-    """Sales by time analysis page - MINIMAL VERSION."""
+    """Sales by time analysis page - FIXED VERSION."""
     global analyzer, current_data
     
-    print("⏰ Sales by time route accessed - MINIMAL VERSION")
+    print("⏰ Sales by time route accessed - FIXED VERSION")
     
     if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
     
     try:
-        print("📊 Getting basic time data...")
+        print("📊 Getting time analysis data...")
         
-        # Create MINIMAL time_data without complex processing
-        time_analysis = {
-            'daily_pattern': pd.DataFrame(),
-            'daily_trend': pd.DataFrame(), 
-            'monthly': pd.DataFrame()
-        }
-        
-        # Try to get simple time data if possible
+        # Get time analysis data safely
+        time_analysis = {}
         try:
-            actual_time_data = analyzer.get_sales_by_time_all_branches()
-            if actual_time_data:
-                time_analysis = actual_time_data
+            raw_time_data = analyzer.get_sales_by_time_all_branches()
+            if raw_time_data:
+                # Convert DataFrames to dictionaries for template
+                time_analysis = {}
+                for key, df in raw_time_data.items():
+                    if safe_df_check(df):
+                        # Convert DataFrame to dict for safe JSON serialization
+                        time_analysis[key] = {
+                            'data': df.to_dict('records'),
+                            'columns': df.columns.tolist(),
+                            'length': len(df)
+                        }
+                    else:
+                        time_analysis[key] = {'data': [], 'columns': [], 'length': 0}
         except Exception as e:
-            print(f"⚠️ Could not get full time data: {e}")
-            # Use empty data - that's fine!
+            print(f"⚠️ Could not get time data: {e}")
+            time_analysis = {
+                'hourly': {'data': [], 'columns': [], 'length': 0},
+                'daily_pattern': {'data': [], 'columns': [], 'length': 0},
+                'daily_trend': {'data': [], 'columns': [], 'length': 0},
+                'weekly': {'data': [], 'columns': [], 'length': 0},
+                'monthly': {'data': [], 'columns': [], 'length': 0}
+            }
         
-        print("📈 Creating EMPTY charts (safe)...")
-        # Create completely empty/minimal charts
-        charts = {
-            'daily_pattern': json.dumps({
-                'data': [],
-                'layout': {'title': 'Daily Pattern (Data akan ditampilkan setelah processing)'}
-            }),
-            'branch_trends': json.dumps({
-                'data': [],
-                'layout': {'title': 'Branch Trends (Data akan ditampilkan setelah processing)'}
-            }),
-            'monthly_comparison': json.dumps({
-                'data': [],
-                'layout': {'title': 'Monthly Comparison (Data akan ditampilkan setelah processing)'}
-            })
+        print("📈 Creating time charts...")
+        # Create charts with safe data
+        charts = create_safe_time_charts(time_analysis)
+        
+        # Prepare summary stats safely
+        summary_stats = {
+            'total_branches': len(analyzer.branches) if analyzer.branches else 0,
+            'date_range': f"{analyzer.min_date.strftime('%d/%m/%Y')} - {analyzer.max_date.strftime('%d/%m/%Y')}" if analyzer.min_date and analyzer.max_date else "No date range",
+            'total_records': len(current_data) if safe_df_check(current_data) else 0
         }
         
-        print("✅ Rendering sales by time template with minimal data...")
-        return render_template('sales_by_time.html',
+        print("✅ Rendering sales by time template...")
+        return render_template('sales_by_time_fixed.html',
                              time_data=time_analysis,
-                             charts=charts)
+                             charts=charts,
+                             summary_stats=summary_stats)
                              
     except Exception as e:
-        print(f"❌ STILL Error in sales by time: {str(e)}")
+        print(f"❌ Error in sales by time: {str(e)}")
         print(f"Traceback: {traceback.format_exc()}")
         
-        # FORCE SUCCESS - return template with empty data
-        print("🔄 FORCING template render with empty data...")
-        empty_time_data = {
-            'daily_pattern': pd.DataFrame(),
-            'daily_trend': pd.DataFrame(),
-            'monthly': pd.DataFrame()
+        # Return safe fallback template
+        print("🔄 Rendering fallback template...")
+        fallback_data = {
+            'hourly': {'data': [], 'columns': [], 'length': 0},
+            'daily_pattern': {'data': [], 'columns': [], 'length': 0},
+            'daily_trend': {'data': [], 'columns': [], 'length': 0},
+            'weekly': {'data': [], 'columns': [], 'length': 0},
+            'monthly': {'data': [], 'columns': [], 'length': 0}
         }
-        empty_charts = {
-            'daily_pattern': '{}',
-            'branch_trends': '{}', 
-            'monthly_comparison': '{}'
+        fallback_charts = {
+            'daily_pattern': '{"data": [], "layout": {"title": "Daily Pattern"}}',
+            'branch_trends': '{"data": [], "layout": {"title": "Branch Trends"}}',
+            'monthly_comparison': '{"data": [], "layout": {"title": "Monthly Comparison"}}'
+        }
+        fallback_stats = {
+            'total_branches': 0,
+            'date_range': "No data",
+            'total_records': 0
         }
         
-        try:
-            return render_template('sales_by_time.html',
-                                 time_data=empty_time_data,
-                                 charts=empty_charts)
-        except Exception as template_error:
-            print(f"❌ Template error: {template_error}")
-            # Last resort - show simple message
-            return f"""
-            <h1>Sales by Time</h1>
-            <p>Page is being loaded. Time analysis will be available soon.</p>
-            <p><a href="{url_for('index')}">Back to Dashboard</a></p>
-            <p>Debug: {str(e)}</p>
-            """
+        return render_template('sales_by_time_fixed.html',
+                             time_data=fallback_data,
+                             charts=fallback_charts,
+                             summary_stats=fallback_stats)
+
+def create_safe_time_charts(time_analysis):
+    """Create charts for time analysis with safe data handling."""
+    charts = {}
+    
+    try:
+        print("📊 Creating safe time charts...")
+        
+        # Daily Pattern Chart
+        if 'daily_pattern' in time_analysis and time_analysis['daily_pattern']['length'] > 0:
+            daily_data = time_analysis['daily_pattern']['data']
+            if daily_data:
+                # Group by day of week
+                day_totals = {}
+                for item in daily_data:
+                    day = item.get('Day_of_Week', 'Unknown')
+                    revenue = item.get('Total_Revenue', 0) or 0
+                    if day in day_totals:
+                        day_totals[day] += revenue
+                    else:
+                        day_totals[day] = revenue
+                
+                # Create chart data
+                days = list(day_totals.keys())
+                revenues = list(day_totals.values())
+                
+                if days and revenues:
+                    fig_daily = go.Figure(data=[
+                        go.Bar(
+                            x=days,
+                            y=revenues,
+                            text=[f'Rp {x:,.0f}' for x in revenues],
+                            textposition='outside',
+                            marker_color='rgba(0, 139, 139, 0.8)'
+                        )
+                    ])
+                    
+                    fig_daily.update_layout(
+                        title='📊 Penjualan per Hari dalam Seminggu',
+                        xaxis_title='Hari',
+                        yaxis_title='Revenue (Rp)',
+                        height=400,
+                        showlegend=False
+                    )
+                    charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
+        
+        # Branch Trends Chart
+        if 'daily_trend' in time_analysis and time_analysis['daily_trend']['length'] > 0:
+            trend_data = time_analysis['daily_trend']['data']
+            if trend_data:
+                # Get top 3 branches by total revenue
+                branch_totals = {}
+                for item in trend_data:
+                    branch = item.get('Branch', 'Unknown')
+                    revenue = item.get('Total', 0) or 0
+                    if branch in branch_totals:
+                        branch_totals[branch] += revenue
+                    else:
+                        branch_totals[branch] = revenue
+                
+                # Get top 3 branches
+                top_branches = sorted(branch_totals.items(), key=lambda x: x[1], reverse=True)[:3]
+                
+                if top_branches:
+                    fig_trends = go.Figure()
+                    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+                    
+                    for i, (branch, _) in enumerate(top_branches):
+                        branch_data = [item for item in trend_data if item.get('Branch') == branch]
+                        if branch_data:
+                            dates = [item.get('Date', '') for item in branch_data]
+                            revenues = [item.get('Total', 0) or 0 for item in branch_data]
+                            
+                            fig_trends.add_trace(go.Scatter(
+                                x=dates,
+                                y=revenues,
+                                mode='lines+markers',
+                                name=branch,
+                                line=dict(width=2, color=colors[i % len(colors)]),
+                                marker=dict(size=4)
+                            ))
+                    
+                    fig_trends.update_layout(
+                        title='📅 Trend Penjualan Harian (Top 3 Cabang)',
+                        xaxis_title='Tanggal',
+                        yaxis_title='Revenue (Rp)',
+                        height=400,
+                        showlegend=True
+                    )
+                    charts['branch_trends'] = json.dumps(fig_trends, cls=plotly.utils.PlotlyJSONEncoder)
+        
+        # Monthly Comparison Chart
+        if 'monthly' in time_analysis and time_analysis['monthly']['length'] > 0:
+            monthly_data = time_analysis['monthly']['data']
+            if monthly_data:
+                # Group by month
+                month_totals = {}
+                for item in monthly_data:
+                    month = item.get('Month', 0) or 0
+                    revenue = item.get('Total', 0) or 0
+                    if month in month_totals:
+                        month_totals[month] += revenue
+                    else:
+                        month_totals[month] = revenue
+                
+                # Create chart data
+                months = sorted(month_totals.keys())
+                revenues = [month_totals[m] for m in months]
+                
+                if months and revenues:
+                    fig_monthly = go.Figure(data=[
+                        go.Bar(
+                            x=[f'Month {int(m)}' for m in months],
+                            y=revenues,
+                            text=[f'Rp {x:,.0f}' for x in revenues],
+                            textposition='outside',
+                            marker_color='rgba(255, 165, 0, 0.8)'
+                        )
+                    ])
+                    
+                    fig_monthly.update_layout(
+                        title='📊 Total Penjualan per Bulan',
+                        xaxis_title='Bulan',
+                        yaxis_title='Revenue (Rp)',
+                        height=400,
+                        showlegend=False
+                    )
+                    charts['monthly_comparison'] = json.dumps(fig_monthly, cls=plotly.utils.PlotlyJSONEncoder)
+        
+        # Create empty charts if no data
+        if not charts:
+            empty_fig = go.Figure()
+            empty_fig.add_annotation(
+                text="Data sedang diproses, silakan refresh halaman",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False,
+                font=dict(size=16, color="gray")
+            )
+            empty_fig.update_layout(height=300)
+            empty_chart = json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
+            
+            charts = {
+                'daily_pattern': empty_chart,
+                'branch_trends': empty_chart,
+                'monthly_comparison': empty_chart
+            }
+        
+        print("✅ Safe time charts created successfully")
+        
+    except Exception as e:
+        print(f"❌ Error creating safe time charts: {e}")
+        # Return completely empty charts
+        empty_fig = go.Figure()
+        empty_fig.add_annotation(
+            text="Chart tidak dapat dimuat",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False
+        )
+        empty_fig.update_layout(height=300)
+        empty_chart = json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
+        
+        charts = {
+            'daily_pattern': empty_chart,
+            'branch_trends': empty_chart,
+            'monthly_comparison': empty_chart
+        }
+    
+    return charts
+
+
 @app.route('/cogs-analysis')
 def cogs_analysis():
     """COGS analysis page."""
