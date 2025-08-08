@@ -80,40 +80,15 @@
     </div>
 </div>
 
-<!-- Charts Row 1 -->
-<div class="row mb-4">
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📊 Daily Pattern Analysis</h5>
-            </div>
-            <div class="chart-body">
-                <div id="daily-pattern-chart"></div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📅 Branch Trends</h5>
-            </div>
-            <div class="chart-body">
-                <div id="branch-trends-chart"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Charts Row 2 -->
+<!-- Main Chart - Branch Trends Only -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">📊 Monthly Comparison</h5>
+                <h5 class="chart-title">📅 Branch Sales Trends Over Time</h5>
             </div>
             <div class="chart-body">
-                <div id="monthly-comparison-chart"></div>
+                <div id="branch-trends-chart"></div>
             </div>
         </div>
     </div>
@@ -140,18 +115,6 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td><strong>Daily Pattern</strong></td>
-                                <td>{{ time_data.daily_pattern.length if time_data.daily_pattern else 0 }}</td>
-                                <td>{{ summary_stats.date_range if summary_stats else "N/A" }}</td>
-                                <td>
-                                    {% if time_data.daily_pattern and time_data.daily_pattern.length > 0 %}
-                                        <span class="badge status-excellent">Ready</span>
-                                    {% else %}
-                                        <span class="badge status-fair">Processing</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            <tr>
                                 <td><strong>Branch Trends</strong></td>
                                 <td>{{ time_data.daily_trend.length if time_data.daily_trend else 0 }}</td>
                                 <td>{{ summary_stats.date_range if summary_stats else "N/A" }}</td>
@@ -164,11 +127,23 @@
                                 </td>
                             </tr>
                             <tr>
-                                <td><strong>Monthly Data</strong></td>
-                                <td>{{ time_data.monthly.length if time_data.monthly else 0 }}</td>
+                                <td><strong>Hourly Data</strong></td>
+                                <td>{{ time_data.hourly.length if time_data.hourly else 0 }}</td>
                                 <td>{{ summary_stats.date_range if summary_stats else "N/A" }}</td>
                                 <td>
-                                    {% if time_data.monthly and time_data.monthly.length > 0 %}
+                                    {% if time_data.hourly and time_data.hourly.length > 0 %}
+                                        <span class="badge status-excellent">Ready</span>
+                                    {% else %}
+                                        <span class="badge status-fair">Processing</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Weekly Data</strong></td>
+                                <td>{{ time_data.weekly.length if time_data.weekly else 0 }}</td>
+                                <td>{{ summary_stats.date_range if summary_stats else "N/A" }}</td>
+                                <td>
+                                    {% if time_data.weekly and time_data.weekly.length > 0 %}
                                         <span class="badge status-excellent">Ready</span>
                                     {% else %}
                                         <span class="badge status-fair">Processing</span>
@@ -197,32 +172,99 @@
                 <div class="alert alert-info">
                     <h6><i class="fas fa-chart-bar me-2"></i>Available Analysis</h6>
                     <ul class="mb-0">
-                        <li><strong>Daily Patterns:</strong> Sales performance by day of week</li>
-                        <li><strong>Hourly Trends:</strong> Peak hours identification</li>
-                        <li><strong>Branch Comparison:</strong> Time-based performance comparison</li>
-                        <li><strong>Seasonal Analysis:</strong> Monthly trends and patterns</li>
+                        <li><strong>Branch Trends:</strong> Sales performance over time comparison</li>
+                        <li><strong>Hourly Analysis:</strong> Peak hours identification</li>
+                        <li><strong>Weekly Patterns:</strong> Performance by week</li>
+                        <li><strong>Seasonal Insights:</strong> Time-based patterns discovery</li>
                     </ul>
                 </div>
                 
                 <div class="alert alert-success">
                     <h6><i class="fas fa-lightbulb me-2"></i>Key Insights</h6>
                     <ul class="mb-0">
-                        <li>Identify peak operating hours</li>
-                        <li>Compare weekend vs weekday performance</li>
-                        <li>Find optimal staffing schedules</li>
-                        <li>Discover seasonal opportunities</li>
+                        <li>Compare branch performance over time</li>
+                        <li>Identify sales trends and patterns</li>
+                        <li>Find optimal periods for each branch</li>
+                        <li>Discover growth opportunities</li>
                     </ul>
                 </div>
                 
                 <div class="alert alert-primary">
                     <h6><i class="fas fa-cog me-2"></i>Optimization Tips</h6>
                     <ul class="mb-0">
-                        <li>Schedule promotions during peak hours</li>
-                        <li>Adjust inventory based on daily patterns</li>
-                        <li>Plan maintenance during slow periods</li>
-                        <li>Allocate staff efficiently</li>
+                        <li>Focus marketing on high-performing periods</li>
+                        <li>Adjust inventory based on trends</li>
+                        <li>Plan promotions during growth periods</li>
+                        <li>Optimize staffing across branches</li>
                     </ul>
                 </div>
+                
+                <div class="alert alert-warning">
+                    <h6><i class="fas fa-info-circle me-2"></i>Note</h6>
+                    <p class="mb-0">Some detailed charts have been simplified for better performance. The main trend analysis provides the most important insights.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Branch Performance Over Time -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h5 class="chart-title">📈 Branch Performance Comparison</h5>
+            </div>
+            <div class="chart-body">
+                {% if time_data and time_data.daily_trend and time_data.daily_trend.length > 0 %}
+                <div class="row">
+                    <div class="col-md-8">
+                        <h6>Top Performing Branches by Time Period</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Branch</th>
+                                        <th>Peak Performance Date</th>
+                                        <th>Peak Revenue</th>
+                                        <th>Average Daily</th>
+                                        <th>Trend</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- This would be populated by the backend with actual data -->
+                                    <tr>
+                                        <td><strong>Analysis Available</strong></td>
+                                        <td colspan="4">Detailed branch performance data is being processed</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Time Period Summary</h6>
+                        <div class="alert alert-light">
+                            <ul class="mb-0">
+                                <li><strong>Total Days Analyzed:</strong> 
+                                    {% if time_data.daily_trend %}
+                                        {{ time_data.daily_trend.length }}
+                                    {% else %}
+                                        0
+                                    {% endif %}
+                                </li>
+                                <li><strong>Branches Tracked:</strong> {{ summary_stats.total_branches if summary_stats else 0 }}</li>
+                                <li><strong>Data Points:</strong> {{ summary_stats.total_records if summary_stats else 0 }}</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Time Analysis Data Processing</h5>
+                    <p class="text-muted">Detailed branch performance comparison will be available once data processing is complete.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -362,6 +404,10 @@
         font-weight: 500;
         font-size: 0.8rem;
     }
+    
+    .fa-3x {
+        font-size: 3rem !important;
+    }
 </style>
 {% endblock %}
 
@@ -371,26 +417,12 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('✅ Sales by Time page loaded successfully!');
     console.log('📊 Time data available:', {{ (time_data and time_data.daily_pattern and time_data.daily_pattern.length > 0) | tojson }});
     
-    // Initialize charts
+    // Initialize charts - Only Branch Trends
     initializeTimeCharts();
 });
 
 function initializeTimeCharts() {
-    // Daily Pattern Chart
-    {% if charts and charts.daily_pattern %}
-    try {
-        const dailyPatternData = {{ charts.daily_pattern | safe }};
-        Plotly.newPlot('daily-pattern-chart', dailyPatternData.data, dailyPatternData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-        console.log('✅ Daily pattern chart loaded');
-    } catch (error) {
-        console.error('❌ Error loading daily pattern chart:', error);
-    }
-    {% endif %}
-    
-    // Branch Trends Chart
+    // Branch Trends Chart - Main chart only
     {% if charts and charts.branch_trends %}
     try {
         const branchTrendsData = {{ charts.branch_trends | safe }};
@@ -401,21 +433,27 @@ function initializeTimeCharts() {
         console.log('✅ Branch trends chart loaded');
     } catch (error) {
         console.error('❌ Error loading branch trends chart:', error);
+        // Show fallback message
+        document.getElementById('branch-trends-chart').innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Chart Loading</h5>
+                <p class="text-muted">Branch trends chart is being prepared...</p>
+            </div>
+        `;
     }
-    {% endif %}
-    
-    // Monthly Comparison Chart
-    {% if charts and charts.monthly_comparison %}
-    try {
-        const monthlyComparisonData = {{ charts.monthly_comparison | safe }};
-        Plotly.newPlot('monthly-comparison-chart', monthlyComparisonData.data, monthlyComparisonData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-        console.log('✅ Monthly comparison chart loaded');
-    } catch (error) {
-        console.error('❌ Error loading monthly comparison chart:', error);
-    }
+    {% else %}
+    // Show placeholder if no chart data
+    document.getElementById('branch-trends-chart').innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-hourglass-half fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Data Processing</h5>
+            <p class="text-muted">Time analysis data is being processed. Please refresh in a moment.</p>
+            <button class="btn btn-outline-primary mt-2" onclick="window.location.reload()">
+                <i class="fas fa-sync-alt me-2"></i>Refresh Page
+            </button>
+        </div>
+    `;
     {% endif %}
     
     // Show success message

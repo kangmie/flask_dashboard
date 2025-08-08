@@ -74,22 +74,6 @@
     </div>
 </div>
 
-<!-- COGS Heatmap -->
-{% if charts and charts.cogs_heatmap %}
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">🔥 COGS Percentage Heatmap per Produk per Cabang</h5>
-            </div>
-            <div class="chart-body">
-                <div id="cogs-heatmap-chart"></div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
 <!-- Best and Worst Performers -->
 <div class="row mb-4">
     <div class="col-lg-6">
@@ -509,7 +493,7 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize charts
+    // Initialize charts (without heatmap)
     initializeCOGSCharts();
     
     // Initialize product COGS analysis
@@ -537,19 +521,6 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeCOGSCharts() {
-    // COGS Heatmap
-    {% if charts and charts.cogs_heatmap %}
-    try {
-        const cogsHeatmapData = {{ charts.cogs_heatmap | safe }};
-        Plotly.newPlot('cogs-heatmap-chart', cogsHeatmapData.data, cogsHeatmapData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error loading COGS heatmap:', error);
-    }
-    {% endif %}
-    
     // Branch Efficiency Chart
     {% if charts and charts.branch_efficiency %}
     try {
