@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -94,6 +94,7 @@ def safe_df_check(data):
         return data is not None and not data.empty
     except Exception:
         return False
+
 
 @app.route('/')
 def index():
@@ -417,6 +418,286 @@ def product_analysis():
 
 # REPLACE the existing sales_by_time route in your app.py with this fixed version:
 
+# TAMBAHKAN ROUTE INI KE app.py untuk DEBUG COGS
+
+# @app.route('/debug-cogs')
+# def debug_cogs():
+#     """Debug route untuk check COGS data."""
+#     global analyzer, current_data
+    
+#     print("🔍 Debug COGS route accessed")
+    
+#     if analyzer is None or not safe_df_check(current_data):
+#         return "❌ No data available. Please upload files first."
+    
+#     try:
+#         print("📊 Getting COGS data for debug...")
+#         cogs_data = analyzer.get_cogs_per_product_per_branch(50)  # Get more products
+        
+#         print(f"✅ COGS data retrieved: {len(cogs_data)} records")
+        
+#         if not safe_df_check(cogs_data):
+#             return "❌ No COGS data available for analysis."
+        
+#         # Debug info
+#         debug_info = {
+#             'total_records': len(cogs_data),
+#             'unique_branches': cogs_data['Branch'].nunique(),
+#             'unique_menus': cogs_data['Menu'].nunique(),
+#             'branches': cogs_data['Branch'].unique().tolist(),
+#             'sample_data': cogs_data.head(5).to_dict('records'),
+#             'columns': cogs_data.columns.tolist()
+#         }
+        
+#         print("🔍 Debug info:", debug_info)
+        
+#         # Render debug template
+#         return render_template_string ('''
+#         <!DOCTYPE html>
+#         <html>
+#         <head><title>Debug COGS</title></head>
+#         <body>
+#             <h1>🔍 Debug COGS Data</h1>
+            
+#             <h3>Data Summary:</h3>
+#             <ul>
+#                 <li>Total records: {{ debug_info.total_records }}</li>
+#                 <li>Unique branches: {{ debug_info.unique_branches }}</li>
+#                 <li>Unique menus: {{ debug_info.unique_menus }}</li>
+#             </ul>
+            
+#             <h3>Branches:</h3>
+#             <ul>
+#                 {% for branch in debug_info.branches %}
+#                 <li>{{ branch }}</li>
+#                 {% endfor %}
+#             </ul>
+            
+#             <h3>Sample Data:</h3>
+#             <table border="1" style="border-collapse: collapse;">
+#                 <tr>
+#                     <th>Branch</th>
+#                     <th>Menu</th>
+#                     <th>COGS %</th>
+#                     <th>Total</th>
+#                     <th>Qty</th>
+#                 </tr>
+#                 {% for item in debug_info.sample_data %}
+#                 <tr>
+#                     <td>{{ item.Branch }}</td>
+#                     <td>{{ item.Menu }}</td>
+#                     <td>{{ item['COGS Total (%)'] | round(1) }}%</td>
+#                     <td>Rp {{ item.Total | number }}</td>
+#                     <td>{{ item.Qty }}</td>
+#                 </tr>
+#                 {% endfor %}
+#             </table>
+            
+#             <h3>Test Branch Selection:</h3>
+#             <select id="branchSelect" onchange="testBranchSelection()">
+#                 <option value="">-- Pilih Cabang --</option>
+#                 {% for branch in debug_info.branches %}
+#                 <option value="{{ branch }}">{{ branch }}</option>
+#                 {% endfor %}
+#             </select>
+            
+#             <div id="branchResult" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+            
+#             <script>
+#             const cogsData = {{ cogs_data.to_dict('records') | safe }};
+#             console.log('COGS data loaded:', cogsData.length, 'records');
+            
+#             function testBranchSelection() {
+#                 const selectedBranch = document.getElementById('branchSelect').value;
+#                 const resultDiv = document.getElementById('branchResult');
+                
+#                 if (selectedBranch) {
+#                     const branchData = cogsData.filter(item => item.Branch === selectedBranch);
+#                     const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
+                    
+#                     resultDiv.innerHTML = `
+#                         <h4>Results for: ${selectedBranch}</h4>
+#                         <p>Records found: ${branchData.length}</p>
+#                         <p>Unique products: ${branchProducts.length}</p>
+#                         <h5>Products:</h5>
+#                         <ul>
+#                             ${branchProducts.slice(0, 20).map(p => `<li>${p}</li>`).join('')}
+#                             ${branchProducts.length > 20 ? `<li>... and ${branchProducts.length - 20} more</li>` : ''}
+#                         </ul>
+#                     `;
+#                 } else {
+#                     resultDiv.innerHTML = 'Select a branch to see results';
+#                 }
+#             }
+#             </script>
+            
+#             <p><a href="{{ url_for('cogs_analysis') }}">← Back to COGS Analysis</a></p>
+#         </body>
+#         </html>
+#         ''', debug_info=debug_info, cogs_data=cogs_data)
+        
+#     except Exception as e:
+#         print(f"❌ Error in debug COGS: {str(e)}")
+#         return f"❌ Error: {str(e)}"
+# GANTI DEBUG ROUTE di app.py dengan yang ini:
+
+@app.route('/debug-cogs')
+def debug_cogs():
+    """Debug route untuk check COGS data - FIXED untuk semua data."""
+    global analyzer, current_data
+    
+    print("🔍 Debug COGS route accessed")
+    
+    if analyzer is None or not safe_df_check(current_data):
+        return "❌ No data available. Please upload files first."
+    
+    try:
+        print("📊 Getting COGS data for debug (ALL PRODUCTS)...")
+        # FIXED: Ambil SEMUA data
+        cogs_data = analyzer.get_cogs_per_product_per_branch(top_n_products=None)  # None = semua
+        
+        print(f"✅ COGS data retrieved: {len(cogs_data)} records")
+        
+        if not safe_df_check(cogs_data):
+            return "❌ No COGS data available for analysis."
+        
+        # Debug info yang lebih detail
+        debug_info = {
+            'total_records': len(cogs_data),
+            'unique_branches': cogs_data['Branch'].nunique(),
+            'unique_menus': cogs_data['Menu'].nunique(),
+            'branches': cogs_data['Branch'].unique().tolist(),
+            'sample_data': cogs_data.head(10).to_dict('records'),  # Lebih banyak sample
+            'columns': cogs_data.columns.tolist()
+        }
+        
+        # Breakdown per cabang
+        branch_breakdown = {}
+        for branch in debug_info['branches']:
+            branch_data = cogs_data[cogs_data['Branch'] == branch]
+            branch_breakdown[branch] = {
+                'total_records': len(branch_data),
+                'unique_menus': branch_data['Menu'].nunique(),
+                'sample_menus': branch_data['Menu'].unique()[:10].tolist()
+            }
+        
+        debug_info['branch_breakdown'] = branch_breakdown
+        
+        print("🔍 Debug info:", debug_info)
+        
+        # Render debug template dengan lebih banyak detail
+        return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head><title>Debug COGS - All Data</title></head>
+        <body>
+            <h1>🔍 Debug COGS Data (ALL PRODUCTS)</h1>
+            
+            <h3>Data Summary:</h3>
+            <ul>
+                <li><strong>Total records:</strong> {{ debug_info.total_records }}</li>
+                <li><strong>Unique branches:</strong> {{ debug_info.unique_branches }}</li>
+                <li><strong>Unique menus:</strong> {{ debug_info.unique_menus }}</li>
+            </ul>
+            
+            <h3>Branch Breakdown:</h3>
+            {% for branch, data in debug_info.branch_breakdown.items() %}
+            <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+                <h4>{{ branch }}</h4>
+                <ul>
+                    <li>Records: {{ data.total_records }}</li>
+                    <li>Unique menus: {{ data.unique_menus }}</li>
+                    <li>Sample menus: {{ data.sample_menus | join(', ') }}{% if data.unique_menus > 10 %} ... ({{ data.unique_menus - 10 }} more){% endif %}</li>
+                </ul>
+            </div>
+            {% endfor %}
+            
+            <h3>Sample Data (First 10 records):</h3>
+            <table border="1" style="border-collapse: collapse; width: 100%;">
+                <tr>
+                    <th>Branch</th>
+                    <th>Menu</th>
+                    <th>COGS %</th>
+                    <th>Total</th>
+                    <th>Qty</th>
+                    <th>Margin</th>
+                </tr>
+                {% for item in debug_info.sample_data %}
+                <tr>
+                    <td>{{ item.Branch }}</td>
+                    <td>{{ item.Menu }}</td>
+                    <td>{{ item['COGS Total (%)'] | round(1) }}%</td>
+                    <td>Rp {{ "{:,}".format(item.Total) }}</td>
+                    <td>{{ item.Qty }}</td>
+                    <td>Rp {{ "{:,}".format(item.Margin) }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            
+            <h3>Interactive Test:</h3>
+            <div style="margin: 20px 0;">
+                <label>Branch Select:</label>
+                <select id="branchSelect" onchange="testBranchSelection()" style="margin: 10px;">
+                    <option value="">-- Pilih Cabang --</option>
+                    {% for branch in debug_info.branches %}
+                    <option value="{{ branch }}">{{ branch }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div id="branchResult" style="margin-top: 20px; padding: 15px; border: 2px solid #007bff; background: #f8f9fa;"></div>
+            
+            <script>
+            const cogsData = {{ cogs_data.to_dict('records') | safe }};
+            console.log('🔍 ALL COGS data loaded:', cogsData.length, 'records');
+            console.log('🏢 Unique branches:', [...new Set(cogsData.map(item => item.Branch))]);
+            console.log('🍜 Unique menus:', [...new Set(cogsData.map(item => item.Menu))].length);
+            
+            function testBranchSelection() {
+                const selectedBranch = document.getElementById('branchSelect').value;
+                const resultDiv = document.getElementById('branchResult');
+                
+                if (selectedBranch) {
+                    const branchData = cogsData.filter(item => item.Branch === selectedBranch);
+                    const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
+                    
+                    console.log('🔍 Branch selected:', selectedBranch);
+                    console.log('📊 Records found:', branchData.length);
+                    console.log('🍜 Unique products:', branchProducts.length);
+                    
+                    resultDiv.innerHTML = `
+                        <h4>✅ Results for: <span style="color: #007bff;">${selectedBranch}</span></h4>
+                        <p><strong>Records found:</strong> ${branchData.length}</p>
+                        <p><strong>Unique products:</strong> ${branchProducts.length}</p>
+                        <h5>All Products (${branchProducts.length}):</h5>
+                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                            <ol>
+                                ${branchProducts.map(p => `<li>${p}</li>`).join('')}
+                            </ol>
+                        </div>
+                        <p style="margin-top: 15px;"><em>Ini adalah semua produk yang tersedia untuk cabang ${selectedBranch}</em></p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = '<p style="color: #6c757d;">Select a branch to see results</p>';
+                }
+            }
+            </script>
+            
+            <div style="margin-top: 30px; padding: 15px; background: #d4edda; border: 1px solid #c3e6cb;">
+                <h4>✅ Success!</h4>
+                <p>Debug shows <strong>{{ debug_info.total_records }}</strong> total records with <strong>{{ debug_info.unique_menus }}</strong> unique menus across <strong>{{ debug_info.unique_branches }}</strong> branches.</p>
+                <p>If the dropdown in COGS Analysis is still empty, there might be a JavaScript issue. Check browser console for errors.</p>
+            </div>
+            
+            <p style="margin-top: 20px;"><a href="{{ url_for('cogs_analysis') }}" style="color: #007bff;">← Back to COGS Analysis</a></p>
+        </body>
+        </html>
+        ''', debug_info=debug_info, cogs_data=cogs_data)
+        
+    except Exception as e:
+        print(f"❌ Error in debug COGS: {str(e)}")
+        return f"❌ Error: {str(e)}"
+
 @app.route('/sales-by-time')
 def sales_by_time():
     """Sales by time analysis page - FIXED VERSION."""
@@ -673,9 +954,49 @@ def create_safe_time_charts(time_analysis):
     return charts
 
 
+# @app.route('/cogs-analysis')
+# def cogs_analysis():
+#     """COGS analysis page."""
+#     global analyzer, current_data
+    
+#     print("💰 COGS analysis route accessed")
+    
+#     if analyzer is None or not safe_df_check(current_data):
+#         flash('No data available. Please upload files first.')
+#         return redirect(url_for('upload_files'))
+    
+#     try:
+#         print("📊 Getting COGS analysis data...")
+#         cogs_data = analyzer.get_cogs_per_product_per_branch(15)
+        
+#         if not safe_df_check(cogs_data):
+#             flash('No COGS data available for analysis.')
+#             return redirect(url_for('index'))
+        
+#         print("📈 Calculating branch COGS efficiency...")
+#         branch_cogs = cogs_data.groupby('Branch')['COGS Total (%)'].mean().reset_index()
+#         branch_cogs['COGS_Efficiency'] = 100 - branch_cogs['COGS Total (%)']
+#         branch_cogs = branch_cogs.sort_values('COGS_Efficiency', ascending=False)
+        
+#         print("📊 Creating COGS analysis charts...")
+#         charts = create_cogs_analysis_charts(cogs_data, branch_cogs)
+        
+#         print("✅ Rendering COGS analysis template...")
+#         return render_template('cogs_analysis.html',
+#                              cogs_data=cogs_data,
+#                              branch_cogs=branch_cogs,
+#                              charts=charts)
+#     except Exception as e:
+#         print(f"❌ Error in COGS analysis: {str(e)}")
+#         print(f"Traceback: {traceback.format_exc()}")
+#         flash(f'Error loading COGS analysis: {str(e)}')
+#         return redirect(url_for('index'))
+
+# GANTI ROUTE COGS ANALYSIS di app.py dengan yang ini:
+
 @app.route('/cogs-analysis')
 def cogs_analysis():
-    """COGS analysis page."""
+    """COGS analysis page - FIXED untuk mengambil SEMUA data."""
     global analyzer, current_data
     
     print("💰 COGS analysis route accessed")
@@ -685,12 +1006,17 @@ def cogs_analysis():
         return redirect(url_for('upload_files'))
     
     try:
-        print("📊 Getting COGS analysis data...")
-        cogs_data = analyzer.get_cogs_per_product_per_branch(15)
+        print("📊 Getting COGS analysis data for ALL products...")
+        # FIXED: Ambil SEMUA data, bukan hanya top 15
+        cogs_data = analyzer.get_cogs_per_product_per_branch(top_n_products=None)  # None = semua
         
         if not safe_df_check(cogs_data):
             flash('No COGS data available for analysis.')
             return redirect(url_for('index'))
+        
+        print(f"✅ COGS data loaded: {len(cogs_data)} records")
+        print(f"📋 Unique menus: {cogs_data['Menu'].nunique()}")
+        print(f"🏢 Unique branches: {cogs_data['Branch'].nunique()}")
         
         print("📈 Calculating branch COGS efficiency...")
         branch_cogs = cogs_data.groupby('Branch')['COGS Total (%)'].mean().reset_index()

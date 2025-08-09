@@ -50,7 +50,7 @@
     </div>
 </div>
 
-<!-- COGS Analysis Charts -->
+<!-- Main COGS Analysis Charts -->
 <div class="row mb-4">
     <div class="col-lg-6">
         <div class="chart-card">
@@ -65,99 +65,48 @@
     <div class="col-lg-6">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">📊 Top 15 Produk dengan Variasi COGS Tertinggi</h5>
+                <h5 class="chart-title">🏆 Ranking Cabang by COGS</h5>
             </div>
             <div class="chart-body">
-                <div id="cogs-variance-chart"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Best and Worst Performers -->
-<div class="row mb-4">
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">✅ Best COGS Efficiency (Top 10)</h5>
-            </div>
-            <div class="chart-body">
-                {% set best_cogs = cogs_data.nsmallest(10, 'COGS Total (%)') %}
                 <div class="table-responsive">
-                    <table class="table table-sm">
+                    <table class="table">
                         <thead>
                             <tr>
                                 <th>Rank</th>
-                                <th>Produk</th>
                                 <th>Cabang</th>
                                 <th>COGS %</th>
                                 <th>Efisiensi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for i in range(10) %}
-                                {% if i < best_cogs|length %}
-                                    {% set item = best_cogs.iloc[i] %}
-                                    <tr>
-                                        <td>
+                            {% for i in range([5, branch_cogs|length]|min) %}
+                                {% set branch = branch_cogs.iloc[i] %}
+                                <tr>
+                                    <td>
+                                        {% if i < 2 %}
                                             <span class="badge status-excellent">#{{ i + 1 }}</span>
-                                        </td>
-                                        <td>
-                                            <strong>{{ item.Menu[:20] }}{% if item.Menu|length > 20 %}...{% endif %}</strong>
-                                        </td>
-                                        <td>{{ item.Branch[:15] }}{% if item.Branch|length > 15 %}...{% endif %}</td>
-                                        <td>
-                                            <span class="badge status-excellent">{{ item['COGS Total (%)'] | round(1) }}%</span>
-                                        </td>
-                                        <td>
-                                            <span class="badge status-excellent">{{ item.COGS_Efficiency | round(1) }}%</span>
-                                        </td>
-                                    </tr>
-                                {% endif %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">⚠️ Worst COGS Efficiency (Top 10)</h5>
-            </div>
-            <div class="chart-body">
-                {% set worst_cogs = cogs_data.nlargest(10, 'COGS Total (%)') %}
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Produk</th>
-                                <th>Cabang</th>
-                                <th>COGS %</th>
-                                <th>Revenue</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for i in range(10) %}
-                                {% if i < worst_cogs|length %}
-                                    {% set item = worst_cogs.iloc[i] %}
-                                    <tr>
-                                        <td>
-                                            <span class="badge status-poor">#{{ i + 1 }}</span>
-                                        </td>
-                                        <td>
-                                            <strong>{{ item.Menu[:20] }}{% if item.Menu|length > 20 %}...{% endif %}</strong>
-                                        </td>
-                                        <td>{{ item.Branch[:15] }}{% if item.Branch|length > 15 %}...{% endif %}</td>
-                                        <td>
-                                            <span class="badge status-poor">{{ item['COGS Total (%)'] | round(1) }}%</span>
-                                        </td>
-                                        <td>{{ item.Total | currency }}</td>
-                                    </tr>
-                                {% endif %}
+                                        {% elif i < 4 %}
+                                            <span class="badge status-good">#{{ i + 1 }}</span>
+                                        {% else %}
+                                            <span class="badge status-fair">#{{ i + 1 }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ branch.Branch[:25] }}{% if branch.Branch|length > 25 %}...{% endif %}</strong></td>
+                                    <td>
+                                        <span class="badge {% if branch['COGS Total (%)'] < 30 %}status-excellent{% elif branch['COGS Total (%)'] < 40 %}status-good{% else %}status-fair{% endif %}">
+                                            {{ branch['COGS Total (%)'] | round(1) }}%
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="height: 18px;">
+                                            <div class="progress-bar {% if branch.COGS_Efficiency > 60 %}bg-success{% elif branch.COGS_Efficiency > 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ branch.COGS_Efficiency }}%">
+                                                {{ branch.COGS_Efficiency | round(1) }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -167,64 +116,76 @@
     </div>
 </div>
 
-<!-- Product COGS Analysis -->
+<!-- FIXED: Branch-First Product Analysis -->
 <div class="row mb-4">
     <div class="col-lg-8">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">🔍 Analisis COGS per Produk Spesifik</h5>
+                <h5 class="chart-title">🔍 Analisis COGS per Produk per Cabang</h5>
             </div>
             <div class="chart-body">
                 <div class="row mb-3">
                     <div class="col-md-6">
-                        <label for="cogsProductSelect" class="form-label">Pilih Produk untuk Analisis COGS:</label>
-                        <select id="cogsProductSelect" class="form-select">
-                            <option value="">-- Pilih Produk --</option>
-                            {% for product in cogs_data['Menu'].unique() %}
-                            <option value="{{ product }}">{{ product }}</option>
-                            {% endfor %}
+                        <label for="branchSelect" class="form-label">1. Pilih Cabang Terlebih Dahulu:</label>
+                        <select id="branchSelect" class="form-select">
+                            <option value="">-- Pilih Cabang --</option>
+                            {% if cogs_data is not none and not cogs_data.empty %}
+                                {% for branch in cogs_data['Branch'].unique() %}
+                                <option value="{{ branch }}">{{ branch }}</option>
+                                {% endfor %}
+                            {% endif %}
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Filter Cabang:</label>
-                        <select id="cogsBranchFilter" class="form-select">
-                            <option value="">Semua Cabang</option>
-                            {% for branch in cogs_data['Branch'].unique() %}
-                            <option value="{{ branch }}">{{ branch }}</option>
-                            {% endfor %}
+                        <label for="productSelect" class="form-label">2. Pilih Produk dari Cabang Tersebut:</label>
+                        <select id="productSelect" class="form-select" disabled>
+                            <option value="">-- Pilih cabang dahulu --</option>
                         </select>
                     </div>
                 </div>
                 
-                <div id="cogs-product-detail" style="display: none;">
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>Panduan Analisis:</h6>
+                    <ul class="mb-0">
+                        <li>Setiap cabang memiliki menu yang berbeda-beda</li>
+                        <li>Pilih cabang untuk melihat daftar menu spesifik cabang tersebut</li>
+                        <li>Analisis COGS akan menampilkan detail produk yang dipilih</li>
+                        <li>Bandingkan COGS produk serupa antar cabang secara manual</li>
+                    </ul>
+                </div>
+                
+                <div id="product-analysis-result" style="display: none;">
                     <div class="row mb-3">
                         <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #dc3545, #bd2130); padding: 15px;">
-                                <div class="metric-value" id="cogs-avg-percentage" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Avg COGS %</div>
+                            <div class="metric-card" style="background: linear-gradient(135deg, #17a2b8, #138496); padding: 15px;">
+                                <div class="metric-value" id="product-cogs-percentage" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">COGS %</div>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="metric-card" style="background: linear-gradient(135deg, #28a745, #1e7e34); padding: 15px;">
-                                <div class="metric-value" id="cogs-best-branch" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Best COGS %</div>
+                                <div class="metric-value" id="product-revenue" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Total Revenue</div>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="metric-card" style="background: linear-gradient(135deg, #ffc107, #e0a800); padding: 15px;">
-                                <div class="metric-value" id="cogs-worst-branch" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Worst COGS %</div>
+                                <div class="metric-value" id="product-quantity" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Total Qty</div>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #007bff, #0056b3); padding: 15px;">
-                                <div class="metric-value" id="cogs-variance" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">COGS Variance</div>
+                            <div class="metric-card" style="background: linear-gradient(135deg, #dc3545, #bd2130); padding: 15px;">
+                                <div class="metric-value" id="product-efficiency" style="font-size: 1.2rem;">-</div>
+                                <div class="metric-label" style="font-size: 0.8rem;">Efficiency</div>
                             </div>
                         </div>
                     </div>
                     
-                    <div id="product-cogs-chart"></div>
+                    <div class="alert alert-primary" id="product-insights">
+                        <h6><i class="fas fa-lightbulb me-2"></i>Insight Produk:</h6>
+                        <p id="product-insight-text">Pilih produk untuk melihat insight COGS</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -233,137 +194,115 @@
     <div class="col-lg-4">
         <div class="chart-card">
             <div class="chart-header">
-                <h5 class="chart-title">💡 COGS Optimization Insights</h5>
+                <h5 class="chart-title">📈 COGS Overview</h5>
             </div>
             <div class="chart-body">
                 <div class="alert alert-info">
-                    <h6><i class="fas fa-chart-bar me-2"></i>COGS Overview</h6>
+                    <h6><i class="fas fa-chart-bar me-2"></i>Data Summary</h6>
                     <ul class="mb-0">
-                        <li><strong>Total Products Analyzed:</strong> {{ cogs_data['Menu'].nunique() }}</li>
-                        <li><strong>Active Branches:</strong> {{ cogs_data['Branch'].nunique() }}</li>
-                        <li><strong>Avg COGS Across All:</strong> {{ cogs_data['COGS Total (%)'].mean() | round(1) }}%</li>
+                        <li><strong>Total Produk:</strong> {{ cogs_data['Menu'].nunique() }}</li>
+                        <li><strong>Total Cabang:</strong> {{ cogs_data['Branch'].nunique() }}</li>
+                        <li><strong>Avg COGS Global:</strong> {{ cogs_data['COGS Total (%)'].mean() | round(1) }}%</li>
+                        <li><strong>Range COGS:</strong> {{ cogs_data['COGS Total (%)'].min() | round(1) }}% - {{ cogs_data['COGS Total (%)'].max() | round(1) }}%</li>
                     </ul>
                 </div>
                 
                 <div class="alert alert-success">
                     <h6><i class="fas fa-trophy me-2"></i>Top Efficient Branches</h6>
                     <ul class="mb-0">
-                        {% for i in range(3) %}
-                            {% if i < branch_cogs|length %}
-                                {% set branch = branch_cogs.iloc[i] %}
-                                <li><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong><br>
-                                    <small>COGS: {{ branch['COGS Total (%)'] | round(1) }}% | Efficiency: {{ branch.COGS_Efficiency | round(1) }}%</small>
-                                </li>
-                            {% endif %}
+                        {% for i in range([3, branch_cogs|length]|min) %}
+                            {% set branch = branch_cogs.iloc[i] %}
+                            <li><strong>{{ branch.Branch[:20] }}{% if branch.Branch|length > 20 %}...{% endif %}</strong><br>
+                                <small>COGS: {{ branch['COGS Total (%)'] | round(1) }}% | Efisiensi: {{ branch.COGS_Efficiency | round(1) }}%</small>
+                            </li>
                         {% endfor %}
                     </ul>
                 </div>
                 
                 <div class="alert alert-warning">
-                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Optimization Opportunities</h6>
+                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Optimization Focus</h6>
                     <ul class="mb-0">
-                        <li>High COGS branches: {{ (branch_cogs['COGS Total (%)'] > 40).sum() }}</li>
-                        <li>Products with high variance need standardization</li>
-                        <li>Potential supplier negotiations</li>
-                        <li>Portion control improvements</li>
+                        <li>Review COGS produk dengan % tinggi per cabang</li>
+                        <li>Bandingkan produk serupa antar cabang</li>
+                        <li>Standardisasi supplier dan porsi</li>
+                        <li>Best practice sharing antar cabang</li>
                     </ul>
                 </div>
                 
-                <div class="alert alert-primary">
-                    <h6><i class="fas fa-lightbulb me-2"></i>Recommendations</h6>
-                    <ol class="mb-0 small">
-                        <li>Standardize supplier procurement</li>
-                        <li>Implement best practices from efficient branches</li>
-                        <li>Review portion control procedures</li>
-                        <li>Negotiate group purchasing contracts</li>
-                        <li>Regular COGS audit and monitoring</li>
-                    </ol>
+                <div id="branch-menu-breakdown" style="display: none;">
+                    <div class="alert alert-light">
+                        <h6><i class="fas fa-utensils me-2"></i>Menu Breakdown Cabang</h6>
+                        <div id="branch-menu-details">
+                            <p>Pilih cabang untuk melihat breakdown menu</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Branch COGS Ranking Table -->
+<!-- Detailed Analysis Table -->
 <div class="row">
     <div class="col-12">
         <div class="data-table">
             <div class="chart-header">
-                <h5 class="chart-title">🏆 Ranking Efisiensi COGS per Cabang</h5>
+                <h5 class="chart-title">📋 Detail COGS per Menu per Cabang</h5>
             </div>
             <div class="table-responsive">
-                <table class="table" id="cogsTable">
+                <table class="table" id="detailCogsTable">
                     <thead>
                         <tr>
-                            <th>Rank</th>
                             <th>Cabang</th>
-                            <th>Avg COGS %</th>
-                            <th>Efisiensi %</th>
-                            <th>Products Analyzed</th>
-                            <th>Total COGS Value</th>
+                            <th>Menu</th>
+                            <th>COGS %</th>
+                            <th>Total Revenue</th>
+                            <th>Qty</th>
+                            <th>Margin %</th>
+                            <th>COGS Efficiency</th>
                             <th>Status</th>
-                            <th>Action Needed</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for i in range(branch_cogs|length) %}
-                            {% set branch = branch_cogs.iloc[i] %}
-                            <tr>
-                                <td>
-                                    {% if i < 3 %}
-                                        <span class="badge status-excellent">#{{ i + 1 }}</span>
-                                    {% elif i < (branch_cogs|length // 2) %}
-                                        <span class="badge status-good">#{{ i + 1 }}</span>
-                                    {% else %}
-                                        <span class="badge status-fair">#{{ i + 1 }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <strong>{{ branch.Branch }}</strong>
-                                </td>
-                                <td>
-                                    <span class="badge {% if branch['COGS Total (%)'] < 30 %}status-excellent{% elif branch['COGS Total (%)'] < 40 %}status-good{% elif branch['COGS Total (%)'] < 50 %}status-fair{% else %}status-poor{% endif %}">
-                                        {{ branch['COGS Total (%)'] | round(1) }}%
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar {% if branch.COGS_Efficiency > 60 %}bg-success{% elif branch.COGS_Efficiency > 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                             role="progressbar" 
-                                             style="width: {{ branch.COGS_Efficiency }}%">
-                                            {{ branch.COGS_Efficiency | round(1) }}%
-                                        </div>
+                        {% for _, item in cogs_data.iterrows() %}
+                        <tr>
+                            <td><strong>{{ item.Branch[:20] }}{% if item.Branch|length > 20 %}...{% endif %}</strong></td>
+                            <td>{{ item.Menu[:30] }}{% if item.Menu|length > 30 %}...{% endif %}</td>
+                            <td>
+                                <span class="badge {% if item['COGS Total (%)'] < 25 %}status-excellent{% elif item['COGS Total (%)'] < 35 %}status-good{% elif item['COGS Total (%)'] < 45 %}status-fair{% else %}status-poor{% endif %}">
+                                    {{ item['COGS Total (%)'] | round(1) }}%
+                                </span>
+                            </td>
+                            <td>{{ item.Total | currency }}</td>
+                            <td>{{ item.Qty | number }}</td>
+                            <td>
+                                {% if item.Total and item.Total > 0 %}
+                                    {{ ((item.Margin / item.Total) * 100) | round(1) }}%
+                                {% else %}
+                                    0%
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="progress" style="height: 16px;">
+                                    <div class="progress-bar {% if item.COGS_Efficiency > 65 %}bg-success{% elif item.COGS_Efficiency > 55 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ item.COGS_Efficiency }}%">
+                                         <small>{{ item.COGS_Efficiency | round(0) }}%</small>
                                     </div>
-                                </td>
-                                <td>
-                                    {% set product_count = cogs_data[cogs_data['Branch'] == branch.Branch]['Menu'].nunique() %}
-                                    {{ product_count }} products
-                                </td>
-                                <td>
-                                    {% set total_cogs_value = cogs_data[cogs_data['Branch'] == branch.Branch]['COGS Total'].sum() %}
-                                    {{ total_cogs_value | currency }}
-                                </td>
-                                <td>
-                                    {% if branch.COGS_Efficiency > 60 %}
-                                        <span class="badge status-excellent">Excellent</span>
-                                    {% elif branch.COGS_Efficiency > 50 %}
-                                        <span class="badge status-good">Good</span>
-                                    {% elif branch.COGS_Efficiency > 40 %}
-                                        <span class="badge status-fair">Fair</span>
-                                    {% else %}
-                                        <span class="badge status-poor">Poor</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if branch.COGS_Efficiency < 50 %}
-                                        <small class="text-danger">Urgent Review</small>
-                                    {% elif branch.COGS_Efficiency < 60 %}
-                                        <small class="text-warning">Monitor Closely</small>
-                                    {% else %}
-                                        <small class="text-success">Maintain Standard</small>
-                                    {% endif %}
-                                </td>
-                            </tr>
+                                </div>
+                            </td>
+                            <td>
+                                {% if item['COGS Total (%)'] < 25 %}
+                                    <span class="badge status-excellent">Excellent</span>
+                                {% elif item['COGS Total (%)'] < 35 %}
+                                    <span class="badge status-good">Good</span>
+                                {% elif item['COGS Total (%)'] < 45 %}
+                                    <span class="badge status-fair">Need Optimization</span>
+                                {% else %}
+                                    <span class="badge status-poor">Urgent Review</span>
+                                {% endif %}
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -394,7 +333,7 @@
         font-weight: 600;
     }
     
-    #cogs-product-detail {
+    #product-analysis-result {
         animation: fadeIn 0.5s ease-in;
     }
     
@@ -487,41 +426,298 @@
         box-shadow: 0 2px 15px rgba(0,0,0,0.08);
         border: 1px solid var(--border-color, #e9ecef);
     }
+    
+    .table td, .table th {
+        vertical-align: middle;
+    }
+    
+    .form-select:disabled {
+        background-color: #e9ecef;
+        opacity: 0.6;
+    }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize charts (without heatmap)
-    initializeCOGSCharts();
+    console.log('🚀 COGS Analysis page loaded');
     
-    // Initialize product COGS analysis
-    initializeCOGSProductAnalysis();
+    // Debug: Check if elements exist
+    const elements = {
+        branchSelect: document.getElementById('branchSelect'),
+        productSelect: document.getElementById('productSelect'),
+        productAnalysisResult: document.getElementById('product-analysis-result'),
+        branchMenuBreakdown: document.getElementById('branch-menu-breakdown')
+    };
+    
+    console.log('📋 Element check:', elements);
+    
+    // Initialize COGS analysis with branch-first approach
+    initializeBranchFirstAnalysis();
     
     // Initialize DataTable
-    $('#cogsTable').DataTable({
-        "pageLength": 20,
-        "order": [[ 0, "asc" ]],
-        "columnDefs": [
-            { "orderable": false, "targets": [6, 7] }
-        ],
-        "language": {
-            "search": "Cari cabang:",
-            "lengthMenu": "Tampilkan _MENU_ cabang per halaman",
-            "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ cabang",
-            "paginate": {
-                "first": "Pertama",
-                "last": "Terakhir",
-                "next": "Selanjutnya",
-                "previous": "Sebelumnya"
+    try {
+        $('#detailCogsTable').DataTable({
+            "pageLength": 15,
+            "order": [[ 2, "desc" ]], // Sort by COGS % desc
+            "columnDefs": [
+                { "orderable": false, "targets": [6, 7] }
+            ],
+            "language": {
+                "search": "Cari cabang/menu:",
+                "lengthMenu": "Tampilkan _MENU_ item per halaman",
+                "info": "Menampilkan _START_ sampai _END_ dari _TOTAL_ item",
+                "paginate": {
+                    "first": "Pertama",
+                    "last": "Terakhir", 
+                    "next": "Selanjutnya",
+                    "previous": "Sebelumnya"
+                }
             }
-        }
-    });
+        });
+        console.log('✅ DataTable initialized');
+    } catch (error) {
+        console.error('❌ DataTable initialization failed:', error);
+    }
+    
+    // Initialize branch efficiency chart
+    initializeBranchEfficiencyChart();
+    
+    console.log('🎯 COGS Analysis initialization complete');
 });
 
-function initializeCOGSCharts() {
-    // Branch Efficiency Chart
+function initializeBranchFirstAnalysis() {
+    const branchSelect = document.getElementById('branchSelect');
+    const productSelect = document.getElementById('productSelect');
+    const productAnalysisResult = document.getElementById('product-analysis-result');
+    const branchMenuBreakdown = document.getElementById('branch-menu-breakdown');
+    
+    console.log('Initializing branch-first analysis...');
+    console.log('Elements found:', {
+        branchSelect: !!branchSelect,
+        productSelect: !!productSelect,
+        productAnalysisResult: !!productAnalysisResult,
+        branchMenuBreakdown: !!branchMenuBreakdown
+    });
+    
+    if (!branchSelect || !productSelect) {
+        console.error('Required elements not found');
+        return;
+    }
+    
+    // Get COGS data with better error handling
+    {% if cogs_data is not none and not cogs_data.empty %}
+    try {
+        const cogsData = {{ cogs_data.to_dict('records') | safe }};
+        console.log('✅ COGS data loaded successfully:', cogsData.length, 'records');
+        
+        // Debug: Show sample data structure
+        if (cogsData.length > 0) {
+            console.log('Sample data structure:', Object.keys(cogsData[0]));
+            console.log('Sample record:', cogsData[0]);
+        }
+        
+        // Debug: Show unique branches in data
+        const uniqueBranches = [...new Set(cogsData.map(item => item.Branch))];
+        console.log('Unique branches in data:', uniqueBranches);
+        
+        // Branch selection change handler
+        branchSelect.addEventListener('change', function() {
+            const selectedBranch = this.value;
+            console.log('📍 Branch selection changed to:', selectedBranch);
+            
+            if (selectedBranch) {
+                populateProductsByBranch(selectedBranch, cogsData);
+                showBranchMenuBreakdown(selectedBranch, cogsData);
+                productSelect.disabled = false;
+                if (branchMenuBreakdown) {
+                    branchMenuBreakdown.style.display = 'block';
+                }
+            } else {
+                productSelect.innerHTML = '<option value="">-- Pilih cabang dahulu --</option>';
+                productSelect.disabled = true;
+                if (productAnalysisResult) {
+                    productAnalysisResult.style.display = 'none';
+                }
+                if (branchMenuBreakdown) {
+                    branchMenuBreakdown.style.display = 'none';
+                }
+            }
+        });
+        
+        // Product selection change handler
+        productSelect.addEventListener('change', function() {
+            const selectedProduct = this.value;
+            const selectedBranch = branchSelect.value;
+            
+            console.log('🍜 Product selection changed to:', selectedProduct);
+            
+            if (selectedProduct && selectedBranch) {
+                showProductAnalysis(selectedBranch, selectedProduct, cogsData);
+                if (productAnalysisResult) {
+                    productAnalysisResult.style.display = 'block';
+                }
+            } else {
+                if (productAnalysisResult) {
+                    productAnalysisResult.style.display = 'none';
+                }
+            }
+        });
+        
+        console.log('✅ Event listeners attached successfully');
+        
+    } catch (error) {
+        console.error('❌ Error processing COGS data:', error);
+        
+        // Show error message in UI
+        if (branchSelect) {
+            branchSelect.innerHTML = '<option value="">-- Error loading data --</option>';
+            branchSelect.disabled = true;
+        }
+    }
+    {% else %}
+    console.warn('❌ No COGS data available from backend');
+    
+    // Show no data message
+    if (branchSelect) {
+        branchSelect.innerHTML = '<option value="">-- No data available --</option>';
+        branchSelect.disabled = true;
+    }
+    if (productSelect) {
+        productSelect.innerHTML = '<option value="">-- No data available --</option>';
+        productSelect.disabled = true;
+    }
+    {% endif %}
+}
+
+function populateProductsByBranch(selectedBranch, allData) {
+    const productSelect = document.getElementById('productSelect');
+    
+    console.log('Populating products for branch:', selectedBranch);
+    console.log('Total data available:', allData.length);
+    
+    // Filter products by selected branch
+    const branchData = allData.filter(item => item.Branch === selectedBranch);
+    console.log('Filtered branch data:', branchData.length);
+    
+    if (branchData.length === 0) {
+        console.warn('No data found for branch:', selectedBranch);
+        productSelect.innerHTML = '<option value="">-- No products found --</option>';
+        return;
+    }
+    
+    const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
+    console.log(`Found ${branchProducts.length} unique products for ${selectedBranch}:`, branchProducts.slice(0, 5));
+    
+    // Clear and populate product dropdown
+    productSelect.innerHTML = '<option value="">-- Pilih produk --</option>';
+    branchProducts.forEach(product => {
+        const option = document.createElement('option');
+        option.value = product;
+        option.textContent = product.length > 50 ? product.substring(0, 50) + '...' : product;
+        productSelect.appendChild(option);
+    });
+    
+    console.log('Product dropdown populated with', productSelect.options.length - 1, 'products');
+}
+
+function showBranchMenuBreakdown(selectedBranch, allData) {
+    const branchMenuDetails = document.getElementById('branch-menu-details');
+    
+    // Filter data for selected branch
+    const branchData = allData.filter(item => item.Branch === selectedBranch);
+    const totalProducts = branchData.length;
+    const uniqueProducts = [...new Set(branchData.map(item => item.Menu))].length;
+    
+    // Calculate COGS statistics for this branch
+    const cogsPercentages = branchData.map(item => item['COGS Total (%)']);
+    const avgCogs = cogsPercentages.reduce((a, b) => a + b, 0) / cogsPercentages.length;
+    const minCogs = Math.min(...cogsPercentages);
+    const maxCogs = Math.max(...cogsPercentages);
+    
+    // Calculate total revenue for this branch
+    const totalRevenue = branchData.reduce((sum, item) => sum + (item.Total || 0), 0);
+    
+    branchMenuDetails.innerHTML = `
+        <ul class="mb-0">
+            <li><strong>Total Produk:</strong> ${uniqueProducts}</li>
+            <li><strong>Total Records:</strong> ${totalProducts}</li>
+            <li><strong>Avg COGS:</strong> ${avgCogs.toFixed(1)}%</li>
+            <li><strong>COGS Range:</strong> ${minCogs.toFixed(1)}% - ${maxCogs.toFixed(1)}%</li>
+            <li><strong>Total Revenue:</strong> ${formatCurrency(totalRevenue)}</li>
+        </ul>
+        <div class="mt-2">
+            <small class="text-muted">Pilih produk dari dropdown untuk analisis detail COGS</small>
+        </div>
+    `;
+}
+
+function showProductAnalysis(selectedBranch, selectedProduct, allData) {
+    // Filter data for selected branch and product
+    const productData = allData.filter(item => 
+        item.Branch === selectedBranch && item.Menu === selectedProduct
+    );
+    
+    if (productData.length === 0) {
+        return;
+    }
+    
+    // Calculate aggregated metrics for this product in this branch
+    const totalRevenue = productData.reduce((sum, item) => sum + (item.Total || 0), 0);
+    const totalQty = productData.reduce((sum, item) => sum + (item.Qty || 0), 0);
+    const totalCogs = productData.reduce((sum, item) => sum + (item['COGS Total'] || 0), 0);
+    const avgCogsPercentage = productData.reduce((sum, item) => sum + (item['COGS Total (%)'] || 0), 0) / productData.length;
+    const efficiency = 100 - avgCogsPercentage;
+    
+    // Update metric cards
+    document.getElementById('product-cogs-percentage').textContent = avgCogsPercentage.toFixed(1) + '%';
+    document.getElementById('product-revenue').textContent = formatCurrency(totalRevenue);
+    document.getElementById('product-quantity').textContent = formatNumber(totalQty);
+    document.getElementById('product-efficiency').textContent = efficiency.toFixed(1) + '%';
+    
+    // Generate insights
+    generateProductInsights(selectedBranch, selectedProduct, avgCogsPercentage, totalRevenue, efficiency);
+}
+
+function generateProductInsights(branch, product, cogsPercentage, revenue, efficiency) {
+    const insightText = document.getElementById('product-insight-text');
+    
+    let insights = [];
+    
+    // COGS Analysis
+    if (cogsPercentage < 25) {
+        insights.push(`🏆 <strong>Excellent COGS:</strong> ${product} memiliki COGS sangat efisien (${cogsPercentage.toFixed(1)}%).`);
+    } else if (cogsPercentage < 35) {
+        insights.push(`✅ <strong>Good COGS:</strong> ${product} memiliki COGS dalam range baik (${cogsPercentage.toFixed(1)}%).`);
+    } else if (cogsPercentage < 45) {
+        insights.push(`⚠️ <strong>Fair COGS:</strong> ${product} perlu optimasi untuk menurunkan COGS dari ${cogsPercentage.toFixed(1)}%.`);
+    } else {
+        insights.push(`🚨 <strong>High COGS:</strong> ${product} memerlukan review urgent - COGS ${cogsPercentage.toFixed(1)}% terlalu tinggi.`);
+    }
+    
+    // Revenue Analysis
+    if (revenue > 1000000) {
+        insights.push(`💰 <strong>High Revenue:</strong> Produk ini berkontribusi signifikan (${formatCurrency(revenue)}).`);
+    } else if (revenue > 500000) {
+        insights.push(`💵 <strong>Medium Revenue:</strong> Kontribusi revenue sedang (${formatCurrency(revenue)}).`);
+    } else {
+        insights.push(`📊 <strong>Low Revenue:</strong> Perlu strategi untuk meningkatkan penjualan (${formatCurrency(revenue)}).`);
+    }
+    
+    // Efficiency Recommendations
+    if (efficiency > 65) {
+        insights.push(`🌟 <strong>Best Practice:</strong> ${branch} bisa menjadi referensi untuk cabang lain dalam mengelola ${product}.`);
+    } else if (efficiency > 55) {
+        insights.push(`🔧 <strong>Optimization Opportunity:</strong> Masih ada ruang untuk meningkatkan efisiensi 5-10%.`);
+    } else {
+        insights.push(`📈 <strong>Improvement Required:</strong> Perlu review supplier, porsi, atau proses memasak untuk ${product}.`);
+    }
+    
+    insightText.innerHTML = insights.join('<br>');
+}
+
+function initializeBranchEfficiencyChart() {
     {% if charts and charts.branch_efficiency %}
     try {
         const branchEfficiencyData = {{ charts.branch_efficiency | safe }};
@@ -531,132 +727,23 @@ function initializeCOGSCharts() {
         });
     } catch (error) {
         console.error('Error loading branch efficiency chart:', error);
+        document.getElementById('branch-efficiency-chart').innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Chart Loading</h5>
+                <p class="text-muted">Branch efficiency chart will appear here</p>
+            </div>
+        `;
     }
+    {% else %}
+    document.getElementById('branch-efficiency-chart').innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Data Processing</h5>
+            <p class="text-muted">Chart data is being processed...</p>
+        </div>
+    `;
     {% endif %}
-    
-    // COGS Variance Chart
-    {% if charts and charts.cogs_variance %}
-    try {
-        const cogsVarianceData = {{ charts.cogs_variance | safe }};
-        Plotly.newPlot('cogs-variance-chart', cogsVarianceData.data, cogsVarianceData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error loading COGS variance chart:', error);
-    }
-    {% endif %}
-}
-
-function initializeCOGSProductAnalysis() {
-    const productSelect = document.getElementById('cogsProductSelect');
-    const branchFilter = document.getElementById('cogsBranchFilter');
-    const detailAnalysis = document.getElementById('cogs-product-detail');
-    
-    // COGS data for analysis
-    const cogsData = {{ cogs_data.to_dict('records') | safe }};
-    
-    productSelect.addEventListener('change', function() {
-        const selectedProduct = this.value;
-        if (selectedProduct) {
-            showCOGSProductDetails(selectedProduct, cogsData);
-            detailAnalysis.style.display = 'block';
-        } else {
-            detailAnalysis.style.display = 'none';
-        }
-    });
-    
-    branchFilter.addEventListener('change', function() {
-        const selectedProduct = productSelect.value;
-        if (selectedProduct) {
-            showCOGSProductDetails(selectedProduct, cogsData);
-        }
-    });
-}
-
-function showCOGSProductDetails(productName, allData) {
-    const branchFilter = document.getElementById('cogsBranchFilter').value;
-    
-    // Filter data for selected product
-    let productData = allData.filter(item => item.Menu === productName);
-    
-    // Apply branch filter if selected
-    if (branchFilter) {
-        productData = productData.filter(item => item.Branch === branchFilter);
-    }
-    
-    if (productData.length === 0) {
-        return;
-    }
-    
-    // Calculate COGS metrics
-    const cogsPercentages = productData.map(item => item['COGS Total (%)']);
-    const avgCOGS = cogsPercentages.reduce((a, b) => a + b, 0) / cogsPercentages.length;
-    const minCOGS = Math.min(...cogsPercentages);
-    const maxCOGS = Math.max(...cogsPercentages);
-    const variance = cogsPercentages.reduce((sum, val) => sum + Math.pow(val - avgCOGS, 2), 0) / cogsPercentages.length;
-    const stdDev = Math.sqrt(variance);
-    
-    // Update metric cards
-    document.getElementById('cogs-avg-percentage').textContent = avgCOGS.toFixed(1) + '%';
-    document.getElementById('cogs-best-branch').textContent = minCOGS.toFixed(1) + '%';
-    document.getElementById('cogs-worst-branch').textContent = maxCOGS.toFixed(1) + '%';
-    document.getElementById('cogs-variance').textContent = stdDev.toFixed(1) + '%';
-    
-    // Create COGS comparison chart
-    createProductCOGSChart(productData, productName);
-}
-
-function createProductCOGSChart(productData, productName) {
-    // Prepare data for chart
-    const branches = productData.map(item => item.Branch);
-    const cogsPercentages = productData.map(item => item['COGS Total (%)']);
-    const revenues = productData.map(item => item.Total);
-    
-    const chartData = [{
-        x: branches,
-        y: cogsPercentages,
-        type: 'bar',
-        name: 'COGS %',
-        marker: {
-            color: cogsPercentages,
-            colorscale: 'RdYlGn_r',
-            showscale: true,
-            colorbar: {
-                title: 'COGS (%)',
-                titleside: 'right'
-            }
-        },
-        text: revenues.map(r => `Revenue: ${formatCurrency(r)}`),
-        textposition: 'outside',
-        hovertemplate: '<b>%{x}</b><br>' +
-                      'COGS: %{y:.1f}%<br>' +
-                      '%{text}<br>' +
-                      '<extra></extra>'
-    }];
-    
-    const layout = {
-        title: `COGS % ${productName} per Cabang`,
-        xaxis: { 
-            title: 'Cabang',
-            tickangle: 45
-        },
-        yaxis: { 
-            title: 'COGS (%)',
-            tickformat: '.1f'
-        },
-        margin: { t: 50, l: 60, r: 60, b: 120 },
-        height: 400
-    };
-    
-    try {
-        Plotly.newPlot('product-cogs-chart', chartData, layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error creating product COGS chart:', error);
-    }
 }
 
 // Utility functions
@@ -666,6 +753,10 @@ function formatCurrency(value) {
         currency: 'IDR',
         minimumFractionDigits: 0
     }).format(value);
+}
+
+function formatNumber(value) {
+    return new Intl.NumberFormat('id-ID').format(value);
 }
 </script>
 {% endblock %}

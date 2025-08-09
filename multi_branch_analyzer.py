@@ -8,10 +8,7 @@ warnings.filterwarnings('ignore')
 class MultiBranchSalesAnalyzer:
     """
     Kelas untuk menganalisis data sales dari multiple cabang/branch.
-    Disesuaikan dengan format Excel: 
-    - Nama cabang di A2
-    - Header di baris 14 (A14-O14)
-    - Data mulai baris 15 (A15-O15...)
+    FIXED: Error handling dan column calculation yang lebih robust.
     """
     
     def __init__(self):
@@ -160,7 +157,7 @@ class MultiBranchSalesAnalyzer:
     
     def _prepare_combined_data(self):
         """
-        Mempersiapkan combined data untuk analisis.
+        Mempersiapkan combined data untuk analisis dengan SAFE calculations.
         """
         if not self.combined_data.empty:
             # Add time-based columns
@@ -170,11 +167,30 @@ class MultiBranchSalesAnalyzer:
             self.combined_data['Month'] = self.combined_data['Sales Date'].dt.month
             self.combined_data['Date'] = self.combined_data['Sales Date'].dt.date
             
-            # Calculate additional metrics
-            if 'Margin_Percentage' not in self.combined_data.columns:
-                self.combined_data['Margin_Percentage'] = (
-                    self.combined_data['Margin'] / self.combined_data['Total']
-                ) * 100
+            # SAFE: Calculate additional metrics with error handling
+            try:
+                # Calculate Margin_Percentage safely
+                self.combined_data['Margin_Percentage'] = np.where(
+                    self.combined_data['Total'] > 0,
+                    (self.combined_data['Margin'] / self.combined_data['Total']) * 100,
+                    0
+                )
+                print("✅ Margin_Percentage calculated successfully")
+            except Exception as e:
+                print(f"❌ Error calculating Margin_Percentage: {e}")
+                self.combined_data['Margin_Percentage'] = 0
+            
+            try:
+                # Calculate COGS_Efficiency safely
+                self.combined_data['COGS_Efficiency'] = np.where(
+                    self.combined_data['COGS Total (%)'].notna(),
+                    100 - self.combined_data['COGS Total (%)'],
+                    0
+                )
+                print("✅ COGS_Efficiency calculated successfully")
+            except Exception as e:
+                print(f"❌ Error calculating COGS_Efficiency: {e}")
+                self.combined_data['COGS_Efficiency'] = 0
             
             # Set basic info
             self.total_records = len(self.combined_data)
@@ -186,282 +202,464 @@ class MultiBranchSalesAnalyzer:
     
     def get_branch_revenue_comparison(self):
         """
-        Komparasi pendapatan semua cabang.
+        Komparasi pendapatan semua cabang dengan SAFE calculations.
         
         Returns:
             pd.DataFrame: Revenue comparison by branch
         """
-        branch_comparison = self.combined_data.groupby('Branch').agg({
-            'Total': ['sum', 'mean', 'count'],
-            'Margin': ['sum', 'mean'],
-            'COGS Total': 'sum',
-            'Qty': 'sum',
-            'Sales Date': ['min', 'max']
-        }).round(2)
-        
-        # Flatten column names
-        branch_comparison.columns = [
-            'Total_Revenue', 'Avg_Transaction', 'Transaction_Count',
-            'Total_Margin', 'Avg_Margin', 'Total_COGS', 'Total_Qty',
-            'Start_Date', 'End_Date'
-        ]
-        
-        # Calculate additional metrics
-        branch_comparison['Margin_Percentage'] = (
-            branch_comparison['Total_Margin'] / branch_comparison['Total_Revenue']
-        ) * 100
-        
-        branch_comparison['COGS_Percentage'] = (
-            branch_comparison['Total_COGS'] / branch_comparison['Total_Revenue']
-        ) * 100
-        
-        branch_comparison['Revenue_per_Day'] = branch_comparison.apply(
-            lambda row: row['Total_Revenue'] / max(1, (row['End_Date'] - row['Start_Date']).days + 1),
-            axis=1
-        )
-        
-        # Reset index and sort by revenue
-        branch_comparison = branch_comparison.reset_index()
-        branch_comparison = branch_comparison.sort_values('Total_Revenue', ascending=False)
-        
-        # Add ranking
-        branch_comparison['Revenue_Rank'] = range(1, len(branch_comparison) + 1)
-        
-        return branch_comparison
+        try:
+            branch_comparison = self.combined_data.groupby('Branch').agg({
+                'Total': ['sum', 'mean', 'count'],
+                'Margin': ['sum', 'mean'],
+                'COGS Total': 'sum',
+                'Qty': 'sum',
+                'Sales Date': ['min', 'max']
+            }).round(2)
+            
+            # Flatten column names
+            branch_comparison.columns = [
+                'Total_Revenue', 'Avg_Transaction', 'Transaction_Count',
+                'Total_Margin', 'Avg_Margin', 'Total_COGS', 'Total_Qty',
+                'Start_Date', 'End_Date'
+            ]
+            
+            # SAFE: Calculate additional metrics with error handling
+            try:
+                branch_comparison['Margin_Percentage'] = np.where(
+                    branch_comparison['Total_Revenue'] > 0,
+                    (branch_comparison['Total_Margin'] / branch_comparison['Total_Revenue']) * 100,
+                    0
+                )
+            except:
+                branch_comparison['Margin_Percentage'] = 0
+            
+            try:
+                branch_comparison['COGS_Percentage'] = np.where(
+                    branch_comparison['Total_Revenue'] > 0,
+                    (branch_comparison['Total_COGS'] / branch_comparison['Total_Revenue']) * 100,
+                    0
+                )
+            except:
+                branch_comparison['COGS_Percentage'] = 0
+            
+            try:
+                branch_comparison['Revenue_per_Day'] = branch_comparison.apply(
+                    lambda row: row['Total_Revenue'] / max(1, (row['End_Date'] - row['Start_Date']).days + 1) if pd.notna(row['End_Date']) and pd.notna(row['Start_Date']) else 0,
+                    axis=1
+                )
+            except:
+                branch_comparison['Revenue_per_Day'] = 0
+            
+            # Reset index and sort by revenue
+            branch_comparison = branch_comparison.reset_index()
+            branch_comparison = branch_comparison.sort_values('Total_Revenue', ascending=False)
+            
+            # Add ranking
+            branch_comparison['Revenue_Rank'] = range(1, len(branch_comparison) + 1)
+            
+            return branch_comparison
+            
+        except Exception as e:
+            print(f"❌ Error in get_branch_revenue_comparison: {e}")
+            return pd.DataFrame()
     
-    def get_product_comparison_by_branch(self, top_n_products=20):
+    def get_product_comparison_by_branch(self, top_n_products=None):
         """
-        Komparasi produk per cabang.
+        Komparasi produk per cabang dengan SAFE calculations.
+        FIXED: Mengambil SEMUA produk jika top_n_products=None
         
         Args:
-            top_n_products: Number of top products to analyze
+            top_n_products: Number of top products to analyze (None = semua produk)
             
         Returns:
             pd.DataFrame: Product comparison across branches
         """
-        # Get top products overall
-        top_products = self.combined_data.groupby('Menu')['Total'].sum().nlargest(top_n_products).index
-        
-        # Filter data for top products only
-        filtered_data = self.combined_data[self.combined_data['Menu'].isin(top_products)]
-        
-        # Create comparison data
-        product_comparison = filtered_data.groupby(['Menu', 'Branch']).agg({
-            'Qty': 'sum',
-            'Total': 'sum',
-            'Margin': 'sum',
-            'COGS Total (%)': 'mean'
-        }).reset_index()
-        
-        # Calculate metrics
-        product_comparison['Revenue_per_Unit'] = (
-            product_comparison['Total'] / product_comparison['Qty']
-        )
-        product_comparison['Margin_per_Unit'] = (
-            product_comparison['Margin'] / product_comparison['Qty']
-        )
-        product_comparison['Margin_Percentage'] = (
-            product_comparison['Margin'] / product_comparison['Total']
-        ) * 100
-        
-        return product_comparison
+        try:
+            if top_n_products is None:
+                # Ambil SEMUA produk
+                print("📦 Getting product comparison for ALL products...")
+                filtered_data = self.combined_data.copy()
+            else:
+                # Get top products overall
+                print(f"📦 Getting product comparison for top {top_n_products} products...")
+                top_products = self.combined_data.groupby('Menu')['Total'].sum().nlargest(top_n_products).index
+                filtered_data = self.combined_data[self.combined_data['Menu'].isin(top_products)]
+            
+            print(f"✅ Filtered data: {len(filtered_data)} records")
+            
+            # Create comparison data - GROUP BY Menu dan Branch
+            product_comparison = filtered_data.groupby(['Menu', 'Branch']).agg({
+                'Qty': 'sum',
+                'Total': 'sum',
+                'Margin': 'sum',
+                'COGS Total (%)': 'mean'
+            }).reset_index()
+            
+            print(f"✅ Product comparison: {len(product_comparison)} unique menu-branch combinations")
+            
+            # SAFE: Calculate metrics with error handling
+            try:
+                product_comparison['Revenue_per_Unit'] = np.where(
+                    product_comparison['Qty'] > 0,
+                    product_comparison['Total'] / product_comparison['Qty'],
+                    0
+                )
+            except:
+                product_comparison['Revenue_per_Unit'] = 0
+            
+            try:
+                product_comparison['Margin_per_Unit'] = np.where(
+                    product_comparison['Qty'] > 0,
+                    product_comparison['Margin'] / product_comparison['Qty'],
+                    0
+                )
+            except:
+                product_comparison['Margin_per_Unit'] = 0
+            
+            try:
+                product_comparison['Margin_Percentage'] = np.where(
+                    product_comparison['Total'] > 0,
+                    (product_comparison['Margin'] / product_comparison['Total']) * 100,
+                    0
+                )
+            except:
+                product_comparison['Margin_Percentage'] = 0
+            
+            return product_comparison
+            
+        except Exception as e:
+            print(f"❌ Error in get_product_comparison_by_branch: {e}")
+            return pd.DataFrame()
     
     def get_sales_by_time_all_branches(self):
         """
-        Sales by time untuk semua cabang.
+        Sales by time untuk semua cabang dengan SAFE processing.
         
         Returns:
             dict: Various time-based analyses
         """
         time_analysis = {}
         
-        # Hourly sales by branch
-        time_analysis['hourly'] = self.combined_data.groupby(['Branch', 'Hour']).agg({
-            'Total': 'sum',
-            'Qty': 'sum',
-            'Margin': 'sum'
-        }).reset_index()
-        
-        # Daily pattern by branch
-        time_analysis['daily_pattern'] = self.combined_data.groupby(['Branch', 'Day_of_Week']).agg({
-            'Total': ['sum', 'mean'],
-            'Qty': 'sum'
-        }).reset_index()
-        time_analysis['daily_pattern'].columns = ['Branch', 'Day_of_Week', 'Total_Revenue', 'Avg_Revenue', 'Total_Qty']
-        
-        # Daily trend by branch
-        time_analysis['daily_trend'] = self.combined_data.groupby(['Branch', 'Date']).agg({
-            'Total': 'sum',
-            'Qty': 'sum',
-            'Margin': 'sum'
-        }).reset_index()
-        
-        # Weekly comparison
-        time_analysis['weekly'] = self.combined_data.groupby(['Branch', 'Week']).agg({
-            'Total': 'sum',
-            'Qty': 'sum'
-        }).reset_index()
-        
-        # Monthly comparison
-        time_analysis['monthly'] = self.combined_data.groupby(['Branch', 'Month']).agg({
-            'Total': 'sum',
-            'Qty': 'sum',
-            'Margin': 'sum'
-        }).reset_index()
+        try:
+            # Hourly sales by branch
+            time_analysis['hourly'] = self.combined_data.groupby(['Branch', 'Hour']).agg({
+                'Total': 'sum',
+                'Qty': 'sum',
+                'Margin': 'sum'
+            }).reset_index()
+            
+            # Daily pattern by branch
+            daily_pattern = self.combined_data.groupby(['Branch', 'Day_of_Week']).agg({
+                'Total': ['sum', 'mean'],
+                'Qty': 'sum'
+            }).reset_index()
+            daily_pattern.columns = ['Branch', 'Day_of_Week', 'Total_Revenue', 'Avg_Revenue', 'Total_Qty']
+            time_analysis['daily_pattern'] = daily_pattern
+            
+            # Daily trend by branch
+            time_analysis['daily_trend'] = self.combined_data.groupby(['Branch', 'Date']).agg({
+                'Total': 'sum',
+                'Qty': 'sum',
+                'Margin': 'sum'
+            }).reset_index()
+            
+            # Weekly comparison
+            time_analysis['weekly'] = self.combined_data.groupby(['Branch', 'Week']).agg({
+                'Total': 'sum',
+                'Qty': 'sum'
+            }).reset_index()
+            
+            # Monthly comparison
+            time_analysis['monthly'] = self.combined_data.groupby(['Branch', 'Month']).agg({
+                'Total': 'sum',
+                'Qty': 'sum',
+                'Margin': 'sum'
+            }).reset_index()
+            
+        except Exception as e:
+            print(f"❌ Error in get_sales_by_time_all_branches: {e}")
+            # Return empty structure
+            time_analysis = {
+                'hourly': pd.DataFrame(),
+                'daily_pattern': pd.DataFrame(),
+                'daily_trend': pd.DataFrame(),
+                'weekly': pd.DataFrame(),
+                'monthly': pd.DataFrame()
+            }
         
         return time_analysis
     
-    def get_cogs_per_product_per_branch(self, top_n_products=15):
+    def get_cogs_per_product_per_branch(self, top_n_products=None):
         """
-        COGS per product per cabang.
+        COGS per product per cabang dengan SAFE calculations.
+        FIXED: Mengambil SEMUA produk jika top_n_products=None
         
         Args:
-            top_n_products: Number of top products to analyze
+            top_n_products: Number of top products to analyze (None = semua produk)
             
         Returns:
             pd.DataFrame: COGS analysis by product and branch
         """
-        # Get top products by revenue
-        top_products = self.combined_data.groupby('Menu')['Total'].sum().nlargest(top_n_products).index
-        
-        # Filter data
-        filtered_data = self.combined_data[self.combined_data['Menu'].isin(top_products)]
-        
-        # COGS analysis
-        cogs_analysis = filtered_data.groupby(['Menu', 'Branch']).agg({
-            'COGS Total': 'sum',
-            'COGS Total (%)': 'mean',
-            'Total': 'sum',
-            'Qty': 'sum',
-            'Margin': 'sum'
-        }).reset_index()
-        
-        # Calculate metrics
-        cogs_analysis['COGS_per_Unit'] = cogs_analysis['COGS Total'] / cogs_analysis['Qty']
-        cogs_analysis['Revenue_per_Unit'] = cogs_analysis['Total'] / cogs_analysis['Qty']
-        cogs_analysis['Margin_per_Unit'] = cogs_analysis['Margin'] / cogs_analysis['Qty']
-        cogs_analysis['COGS_Efficiency'] = 100 - cogs_analysis['COGS Total (%)']
-        
-        # Sort by COGS percentage
-        cogs_analysis = cogs_analysis.sort_values(['Menu', 'COGS Total (%)'])
-        
-        return cogs_analysis
+        try:
+            if top_n_products is None:
+                # Ambil SEMUA produk
+                print("📊 Getting COGS for ALL products...")
+                filtered_data = self.combined_data.copy()
+            else:
+                # Get top products by revenue
+                print(f"📊 Getting COGS for top {top_n_products} products...")
+                top_products = self.combined_data.groupby('Menu')['Total'].sum().nlargest(top_n_products).index
+                filtered_data = self.combined_data[self.combined_data['Menu'].isin(top_products)]
+            
+            print(f"✅ Filtered data: {len(filtered_data)} records")
+            
+            # COGS analysis - GROUP BY Menu dan Branch untuk menghindari duplikasi
+            cogs_analysis = filtered_data.groupby(['Menu', 'Branch']).agg({
+                'COGS Total': 'sum',
+                'COGS Total (%)': 'mean',
+                'Total': 'sum',
+                'Qty': 'sum',
+                'Margin': 'sum'
+            }).reset_index()
+            
+            print(f"✅ COGS analysis: {len(cogs_analysis)} unique menu-branch combinations")
+            
+            # SAFE: Calculate metrics with error handling
+            try:
+                cogs_analysis['COGS_per_Unit'] = np.where(
+                    cogs_analysis['Qty'] > 0,
+                    cogs_analysis['COGS Total'] / cogs_analysis['Qty'],
+                    0
+                )
+            except:
+                cogs_analysis['COGS_per_Unit'] = 0
+            
+            try:
+                cogs_analysis['Revenue_per_Unit'] = np.where(
+                    cogs_analysis['Qty'] > 0,
+                    cogs_analysis['Total'] / cogs_analysis['Qty'],
+                    0
+                )
+            except:
+                cogs_analysis['Revenue_per_Unit'] = 0
+            
+            try:
+                cogs_analysis['Margin_per_Unit'] = np.where(
+                    cogs_analysis['Qty'] > 0,
+                    cogs_analysis['Margin'] / cogs_analysis['Qty'],
+                    0
+                )
+            except:
+                cogs_analysis['Margin_per_Unit'] = 0
+            
+            try:
+                cogs_analysis['COGS_Efficiency'] = np.where(
+                    cogs_analysis['COGS Total (%)'].notna(),
+                    100 - cogs_analysis['COGS Total (%)'],
+                    0
+                )
+            except:
+                cogs_analysis['COGS_Efficiency'] = 0
+            
+            try:
+                cogs_analysis['Margin_Percentage'] = np.where(
+                    cogs_analysis['Total'] > 0,
+                    (cogs_analysis['Margin'] / cogs_analysis['Total']) * 100,
+                    0
+                )
+            except:
+                cogs_analysis['Margin_Percentage'] = 0
+            
+            # Sort by COGS percentage
+            cogs_analysis = cogs_analysis.sort_values(['Menu', 'COGS Total (%)'])
+            
+            return cogs_analysis
+            
+        except Exception as e:
+            print(f"❌ Error in get_cogs_per_product_per_branch: {e}")
+            return pd.DataFrame()
     
     def get_branch_summary_stats(self):
         """
-        Statistik summary untuk semua cabang.
+        Statistik summary untuk semua cabang dengan SAFE calculations.
         
         Returns:
             dict: Summary statistics
         """
-        return {
-            'total_branches': len(self.branches),
-            'total_records': self.total_records,
-            'date_range': f"{self.min_date.strftime('%d/%m/%Y')} - {self.max_date.strftime('%d/%m/%Y')}",
-            'total_revenue': self.combined_data['Total'].sum(),
-            'total_margin': self.combined_data['Margin'].sum(),
-            'total_cogs': self.combined_data['COGS Total'].sum(),
-            'avg_cogs_percentage': self.combined_data['COGS Total (%)'].mean(),
-            'total_transactions': len(self.combined_data),
-            'unique_products': self.combined_data['Menu'].nunique(),
-            'avg_transaction_value': self.combined_data['Total'].mean(),
-            'files_processed': self.branch_files
-        }
+        try:
+            return {
+                'total_branches': len(self.branches),
+                'total_records': self.total_records,
+                'date_range': f"{self.min_date.strftime('%d/%m/%Y')} - {self.max_date.strftime('%d/%m/%Y')}" if self.min_date and self.max_date else "No date range",
+                'total_revenue': self.combined_data['Total'].sum() if not self.combined_data.empty else 0,
+                'total_margin': self.combined_data['Margin'].sum() if not self.combined_data.empty else 0,
+                'total_cogs': self.combined_data['COGS Total'].sum() if not self.combined_data.empty else 0,
+                'avg_cogs_percentage': self.combined_data['COGS Total (%)'].mean() if not self.combined_data.empty else 0,
+                'total_transactions': len(self.combined_data) if not self.combined_data.empty else 0,
+                'unique_products': self.combined_data['Menu'].nunique() if not self.combined_data.empty else 0,
+                'avg_transaction_value': self.combined_data['Total'].mean() if not self.combined_data.empty else 0,
+                'files_processed': self.branch_files
+            }
+        except Exception as e:
+            print(f"❌ Error in get_branch_summary_stats: {e}")
+            return {
+                'total_branches': 0,
+                'total_records': 0,
+                'date_range': "No data",
+                'total_revenue': 0,
+                'total_margin': 0,
+                'total_cogs': 0,
+                'avg_cogs_percentage': 0,
+                'total_transactions': 0,
+                'unique_products': 0,
+                'avg_transaction_value': 0,
+                'files_processed': {}
+            }
     
     def get_cross_branch_insights(self):
         """
-        Mendapatkan insights cross-branch.
+        Mendapatkan insights cross-branch dengan SAFE calculations.
         
         Returns:
             dict: Various insights across branches
         """
         insights = {}
         
-        # Revenue distribution
-        branch_revenue = self.get_branch_revenue_comparison()
-        total_revenue = branch_revenue['Total_Revenue'].sum()
-        
-        insights['revenue_concentration'] = {
-            'top_3_branches_share': (
-                branch_revenue.head(3)['Total_Revenue'].sum() / total_revenue * 100
-            ),
-            'bottom_3_branches_share': (
-                branch_revenue.tail(3)['Total_Revenue'].sum() / total_revenue * 100
-            ),
-            'revenue_inequality': branch_revenue['Total_Revenue'].std() / branch_revenue['Total_Revenue'].mean()
-        }
-        
-        # Product consistency across branches
-        product_comparison = self.get_product_comparison_by_branch()
-        
-        # Find products available in most branches
-        product_branch_count = product_comparison.groupby('Menu')['Branch'].nunique().reset_index()
-        product_branch_count.columns = ['Menu', 'Available_Branches']
-        product_branch_count['Availability_Percentage'] = (
-            product_branch_count['Available_Branches'] / len(self.branches) * 100
-        )
-        
-        insights['product_consistency'] = {
-            'universal_products': len(product_branch_count[product_branch_count['Availability_Percentage'] == 100]),
-            'limited_products': len(product_branch_count[product_branch_count['Availability_Percentage'] < 50]),
-            'avg_availability': product_branch_count['Availability_Percentage'].mean()
-        }
-        
-        # COGS consistency
-        cogs_data = self.get_cogs_per_product_per_branch()
-        cogs_variance = cogs_data.groupby('Menu')['COGS Total (%)'].agg(['mean', 'std']).reset_index()
-        cogs_variance['CV'] = cogs_variance['std'] / cogs_variance['mean']  # Coefficient of variation
-        
-        insights['cogs_consistency'] = {
-            'high_variance_products': len(cogs_variance[cogs_variance['CV'] > 0.2]),
-            'avg_cogs_variance': cogs_variance['CV'].mean(),
-            'most_consistent_cogs': cogs_variance.loc[cogs_variance['CV'].idxmin(), 'Menu'] if not cogs_variance.empty else None
-        }
+        try:
+            # Revenue distribution
+            branch_revenue = self.get_branch_revenue_comparison()
+            
+            if not branch_revenue.empty:
+                total_revenue = branch_revenue['Total_Revenue'].sum()
+                
+                insights['revenue_concentration'] = {
+                    'top_3_branches_share': (
+                        branch_revenue.head(3)['Total_Revenue'].sum() / max(total_revenue, 1) * 100
+                    ),
+                    'bottom_3_branches_share': (
+                        branch_revenue.tail(3)['Total_Revenue'].sum() / max(total_revenue, 1) * 100
+                    ),
+                    'revenue_inequality': branch_revenue['Total_Revenue'].std() / max(branch_revenue['Total_Revenue'].mean(), 1)
+                }
+            else:
+                insights['revenue_concentration'] = {
+                    'top_3_branches_share': 0,
+                    'bottom_3_branches_share': 0,
+                    'revenue_inequality': 0
+                }
+            
+            # Product consistency across branches
+            product_comparison = self.get_product_comparison_by_branch()
+            
+            if not product_comparison.empty:
+                # Find products available in most branches
+                product_branch_count = product_comparison.groupby('Menu')['Branch'].nunique().reset_index()
+                product_branch_count.columns = ['Menu', 'Available_Branches']
+                product_branch_count['Availability_Percentage'] = (
+                    product_branch_count['Available_Branches'] / max(len(self.branches), 1) * 100
+                )
+                
+                insights['product_consistency'] = {
+                    'universal_products': len(product_branch_count[product_branch_count['Availability_Percentage'] == 100]),
+                    'limited_products': len(product_branch_count[product_branch_count['Availability_Percentage'] < 50]),
+                    'avg_availability': product_branch_count['Availability_Percentage'].mean()
+                }
+            else:
+                insights['product_consistency'] = {
+                    'universal_products': 0,
+                    'limited_products': 0,
+                    'avg_availability': 0
+                }
+            
+            # COGS consistency
+            cogs_data = self.get_cogs_per_product_per_branch()
+            
+            if not cogs_data.empty:
+                cogs_variance = cogs_data.groupby('Menu')['COGS Total (%)'].agg(['mean', 'std']).reset_index()
+                cogs_variance['CV'] = np.where(
+                    cogs_variance['mean'] > 0,
+                    cogs_variance['std'] / cogs_variance['mean'],
+                    0
+                )
+                
+                insights['cogs_consistency'] = {
+                    'high_variance_products': len(cogs_variance[cogs_variance['CV'] > 0.2]),
+                    'avg_cogs_variance': cogs_variance['CV'].mean(),
+                    'most_consistent_cogs': cogs_variance.loc[cogs_variance['CV'].idxmin(), 'Menu'] if not cogs_variance.empty else None
+                }
+            else:
+                insights['cogs_consistency'] = {
+                    'high_variance_products': 0,
+                    'avg_cogs_variance': 0,
+                    'most_consistent_cogs': None
+                }
+                
+        except Exception as e:
+            print(f"❌ Error in get_cross_branch_insights: {e}")
+            insights = {
+                'revenue_concentration': {'top_3_branches_share': 0, 'bottom_3_branches_share': 0, 'revenue_inequality': 0},
+                'product_consistency': {'universal_products': 0, 'limited_products': 0, 'avg_availability': 0},
+                'cogs_consistency': {'high_variance_products': 0, 'avg_cogs_variance': 0, 'most_consistent_cogs': None}
+            }
         
         return insights
     
     def prepare_data_for_ai(self):
         """
-        Mempersiapkan data summary untuk AI chatbot.
+        Mempersiapkan data summary untuk AI chatbot dengan SAFE calculations.
         
         Returns:
             dict: Comprehensive data summary for AI
         """
-        summary_stats = self.get_branch_summary_stats()
-        branch_comparison = self.get_branch_revenue_comparison()
-        cross_insights = self.get_cross_branch_insights()
-        
-        # Top performers
-        top_branch = branch_comparison.iloc[0] if not branch_comparison.empty else None
-        worst_branch = branch_comparison.iloc[-1] if not branch_comparison.empty else None
-        
-        # Top products across all branches
-        top_products = self.combined_data.groupby('Menu').agg({
-            'Qty': 'sum',
-            'Total': 'sum',
-            'Margin': 'sum'
-        }).nlargest(5, 'Total').reset_index()
-        
-        ai_context = {
-            'summary': summary_stats,
-            'branch_performance': {
-                'best_branch': {
-                    'name': top_branch['Branch'] if top_branch is not None else 'N/A',
-                    'revenue': top_branch['Total_Revenue'] if top_branch is not None else 0,
-                    'margin_pct': top_branch['Margin_Percentage'] if top_branch is not None else 0
+        try:
+            summary_stats = self.get_branch_summary_stats()
+            branch_comparison = self.get_branch_revenue_comparison()
+            cross_insights = self.get_cross_branch_insights()
+            
+            # Top performers
+            top_branch = branch_comparison.iloc[0] if not branch_comparison.empty else None
+            worst_branch = branch_comparison.iloc[-1] if not branch_comparison.empty else None
+            
+            # Top products across all branches
+            if not self.combined_data.empty:
+                top_products = self.combined_data.groupby('Menu').agg({
+                    'Qty': 'sum',
+                    'Total': 'sum',
+                    'Margin': 'sum'
+                }).nlargest(5, 'Total').reset_index()
+            else:
+                top_products = pd.DataFrame()
+            
+            ai_context = {
+                'summary': summary_stats,
+                'branch_performance': {
+                    'best_branch': {
+                        'name': top_branch['Branch'] if top_branch is not None else 'N/A',
+                        'revenue': top_branch['Total_Revenue'] if top_branch is not None else 0,
+                        'margin_pct': top_branch['Margin_Percentage'] if top_branch is not None else 0
+                    },
+                    'worst_branch': {
+                        'name': worst_branch['Branch'] if worst_branch is not None else 'N/A',
+                        'revenue': worst_branch['Total_Revenue'] if worst_branch is not None else 0,
+                        'margin_pct': worst_branch['Margin_Percentage'] if worst_branch is not None else 0
+                    }
                 },
-                'worst_branch': {
-                    'name': worst_branch['Branch'] if worst_branch is not None else 'N/A',
-                    'revenue': worst_branch['Total_Revenue'] if worst_branch is not None else 0,
-                    'margin_pct': worst_branch['Margin_Percentage'] if worst_branch is not None else 0
-                }
-            },
-            'top_products_overall': top_products.to_dict('records'),
-            'cross_branch_insights': cross_insights,
-            'branch_list': self.branches
-        }
-        
-        return ai_context
+                'top_products_overall': top_products.to_dict('records') if not top_products.empty else [],
+                'cross_branch_insights': cross_insights,
+                'branch_list': self.branches
+            }
+            
+            return ai_context
+            
+        except Exception as e:
+            print(f"❌ Error in prepare_data_for_ai: {e}")
+            return {
+                'summary': {'total_branches': 0, 'total_records': 0},
+                'branch_performance': {'best_branch': {'name': 'N/A', 'revenue': 0, 'margin_pct': 0}, 'worst_branch': {'name': 'N/A', 'revenue': 0, 'margin_pct': 0}},
+                'top_products_overall': [],
+                'cross_branch_insights': {},
+                'branch_list': []
+            }
 
 if __name__ == "__main__":
     # This file should be imported, not run directly
