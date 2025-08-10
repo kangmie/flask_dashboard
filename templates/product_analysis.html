@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% block title %}Analisis Produk - Multi-Branch Analytics{% endblock %}
-
 {% block page_title %}📦 Analisis Produk Multi-Cabang{% endblock %}
 
 {% block breadcrumb %}
@@ -12,981 +11,514 @@
 {% block content %}
 <!-- Summary Cards -->
 <div class="row mb-4">
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="metric-card">
-            <div class="metric-icon">
-                <i class="fas fa-boxes"></i>
-            </div>
-            <div class="metric-value">
-                {% if product_data is not none and not product_data.empty %}
-                    {{ product_data['Menu'].nunique() }}
-                {% else %}
-                    0
-                {% endif %}
-            </div>
-            <div class="metric-label">Total Produk Unik</div>
-        </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-icon"><i class="fas fa-boxes"></i></div>
+      <div class="metric-value">
+        {% if product_data is not none and not product_data.empty %}
+          {{ product_data['Menu'].nunique() }}
+        {% else %}0{% endif %}
+      </div>
+      <div class="metric-label">Total Produk Unik</div>
     </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="metric-card" style="background: linear-gradient(135deg, #FF8C00 0%, #FFA500 100%);">
-            <div class="metric-icon">
-                <i class="fas fa-chart-line"></i>
-            </div>
-            <div class="metric-value">
-                {% if top_products is not none and not top_products.empty %}
-                    {{ (top_products['Total'].sum() / 1000000) | round(1) }}M
-                {% else %}
-                    0M
-                {% endif %}
-            </div>
-            <div class="metric-label">Total Revenue</div>
-        </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background:linear-gradient(135deg,#FF8C00 0%,#FFA500 100%);">
+      <div class="metric-icon"><i class="fas fa-chart-line"></i></div>
+      <div class="metric-value">
+        {% if top_products is not none and not top_products.empty %}
+          {{ (top_products['Total'].sum() / 1000000) | round(1) }}M
+        {% else %}0M{% endif %}
+      </div>
+      <div class="metric-label">Total Revenue</div>
     </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="metric-card" style="background: linear-gradient(135deg, #32CD32 0%, #228B22 100%);">
-            <div class="metric-icon">
-                <i class="fas fa-percentage"></i>
-            </div>
-            <div class="metric-value">
-                {% if top_products is not none and not top_products.empty %}
-                    {{ top_products['Margin_Percentage'].mean() | round(1) }}%
-                {% else %}
-                    0%
-                {% endif %}
-            </div>
-            <div class="metric-label">Avg Margin %</div>
-        </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background:linear-gradient(135deg,#32CD32 0%,#228B22 100%);">
+      <div class="metric-icon"><i class="fas fa-percentage"></i></div>
+      <div class="metric-value">
+        {% if top_products is not none and not top_products.empty %}
+          {{ top_products['Margin_Percentage'].mean() | round(1) }}%
+        {% else %}0%{% endif %}
+      </div>
+      <div class="metric-label">Avg Margin %</div>
     </div>
-    <div class="col-lg-3 col-md-6 mb-3">
-        <div class="metric-card" style="background: linear-gradient(135deg, #9370DB 0%, #8A2BE2 100%);">
-            <div class="metric-icon">
-                <i class="fas fa-building"></i>
-            </div>
-            <div class="metric-value">
-                {% if product_data is not none and not product_data.empty %}
-                    {{ product_data['Branch'].nunique() }}
-                {% else %}
-                    0
-                {% endif %}
-            </div>
-            <div class="metric-label">Cabang Analyzed</div>
-        </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background:linear-gradient(135deg,#9370DB 0%,#8A2BE2 100%);">
+      <div class="metric-icon"><i class="fas fa-building"></i></div>
+      <div class="metric-value">
+        {% if product_data is not none and not product_data.empty %}
+          {{ product_data['Branch'].nunique() }}
+        {% else %}0{% endif %}
+      </div>
+      <div class="metric-label">Cabang Analyzed</div>
     </div>
+  </div>
 </div>
 
-<!-- Top Products Charts -->
-{% if charts %}
+<!-- Main Analysis - Top Performers per Branch -->
 <div class="row mb-4">
-    {% if charts.top_revenue %}
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">💰 Top 15 Produk by Revenue</h5>
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-header"><h5 class="chart-title">🏆 Top Performers per Cabang</h5></div>
+      <div class="chart-body">
+        <div class="row mb-3 g-3">
+          <div class="col-md-4">
+            <label for="branchSelect" class="form-label">Pilih Cabang:</label>
+            <select id="branchSelect" class="form-select">
+              <option value="">-- Pilih Cabang Terlebih Dahulu --</option>
+              {% if product_data is not none and not product_data.empty %}
+                {% for branch in product_data['Branch'].unique() %}
+                  <option value="{{ branch }}">{{ branch }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+            <div class="text-muted mt-1">⚠️ Setiap cabang memiliki menu yang berbeda</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Jumlah Top Products:</label>
+            <select id="topCount" class="form-select">
+              <option value="10" selected>Top 10</option>
+              <option value="15">Top 15</option>
+              <option value="20">Top 20</option>
+              <option value="25">Top 25</option>
+              <option value="50">Top 50</option>
+              <option value="all">Tampilkan Semua</option>
+            </select>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="showFullNames">
+              <label class="form-check-label" for="showFullNames">Tampilkan nama produk lengkap</label>
             </div>
-            <div class="chart-body">
-                <div id="top-revenue-chart"></div>
-            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Sorting:</label>
+            <select id="sortBy" class="form-select">
+              <option value="revenue" selected>By Revenue</option>
+              <option value="quantity">By Quantity</option>
+              <option value="margin">By Margin %</option>
+            </select>
+          </div>
         </div>
-    </div>
-    {% endif %}
-    
-    {% if charts.top_quantity %}
-    <div class="col-lg-6">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📦 Top 15 Produk by Quantity</h5>
-            </div>
-            <div class="chart-body">
-                <div id="top-quantity-chart"></div>
-            </div>
-        </div>
-    </div>
-    {% endif %}
-</div>
-{% endif %}
 
-<!-- Product Performance Summary - FIXED: Branch-first filtering -->
-<div class="row mb-4">
-    <div class="col-lg-8">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">🏆 Top Performers per Cabang</h5>
-            </div>
-            <div class="chart-body">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label for="topPerformerBranch" class="form-label">Pilih Cabang untuk Top Performers:</label>
-                        <select id="topPerformerBranch" class="form-select">
-                            <option value="all">Semua Cabang (Agregat)</option>
-                            {% if product_data is not none and not product_data.empty %}
-                                {% for branch in product_data['Branch'].unique() %}
-                                <option value="{{ branch }}">{{ branch }}</option>
-                                {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Jumlah Top Products:</label>
-                        <select id="topPerformerCount" class="form-select">
-                            <option value="5">Top 5</option>
-                            <option value="10" selected>Top 10</option>
-                            <option value="15">Top 15</option>
-                            <option value="20">Top 20</option>
-                        </select>
-                    </div>
-                </div>
+        <div id="top-performers-table">
+          <div class="alert alert-warning text-center">
+            <h6><i class="fas fa-info-circle me-2"></i>Pilih Cabang Terlebih Dahulu</h6>
+            <p class="mb-0">Setiap cabang memiliki menu yang unik dan berbeda.<br>Silakan pilih cabang dari dropdown di atas untuk melihat top performers spesifik cabang tersebut.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-                <div id="top-performers-table">
-                    {% if top_products is not none and not top_products.empty %}
-                    <div class="table-responsive">
-                        <table class="table" id="topPerformersTable">
-                            <thead>
-                                <tr>
-                                    <th>Rank</th>
-                                    <th>Produk</th>
-                                    <th>Revenue</th>
-                                    <th>Quantity</th>
-                                    <th>Margin %</th>
-                                    <th>Branches</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="topPerformersBody">
-                                {% for i in range([10, top_products|length]|min) %}
-                                    {% set product = top_products.iloc[i] %}
-                                    <tr>
-                                        <td>
-                                            {% if i < 3 %}
-                                                <span class="badge status-excellent">#{{ i + 1 }}</span>
-                                            {% elif i < 7 %}
-                                                <span class="badge status-good">#{{ i + 1 }}</span>
-                                            {% else %}
-                                                <span class="badge status-fair">#{{ i + 1 }}</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <strong>{{ product.Menu[:30] }}{% if product.Menu|length > 30 %}...{% endif %}</strong>
-                                        </td>
-                                        <td>{{ product.Total | currency }}</td>
-                                        <td>{{ product.Qty | number }}</td>
-                                        <td>
-                                            {% set margin_pct = product.Margin_Percentage %}
-                                            {% if margin_pct > 30 %}
-                                                <span class="badge status-excellent">{{ margin_pct | percentage }}</span>
-                                            {% elif margin_pct > 20 %}
-                                                <span class="badge status-good">{{ margin_pct | percentage }}</span>
-                                            {% elif margin_pct > 10 %}
-                                                <span class="badge status-fair">{{ margin_pct | percentage }}</span>
-                                            {% else %}
-                                                <span class="badge status-poor">{{ margin_pct | percentage }}</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if product_data is not none and not product_data.empty %}
-                                                {% set product_branches = product_data[product_data['Menu'] == product.Menu]['Branch'].nunique() %}
-                                                <span class="badge bg-info">{{ product_branches }}</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">0</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if i < 3 and margin_pct > 20 %}
-                                                <span class="badge status-excellent">Star Product</span>
-                                            {% elif i < 7 and margin_pct > 15 %}
-                                                <span class="badge status-good">Good Performer</span>
-                                            {% elif margin_pct > 10 %}
-                                                <span class="badge status-fair">Average</span>
-                                            {% else %}
-                                                <span class="badge status-poor">Needs Review</span>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                        <p class="text-muted">No product data available</p>
-                    {% endif %}
-                </div>
-            </div>
+  <div class="col-lg-4">
+    <div class="chart-card">
+      <div class="chart-header"><h5 class="chart-title">📊 Branch Selection Info</h5></div>
+      <div class="chart-body">
+        <div id="current-selection-info">
+          <div class="alert alert-warning">
+            <h6><i class="fas fa-exclamation-triangle me-2"></i>Important Notice</h6>
+            <p id="selection-text">Setiap cabang memiliki menu yang UNIK dan BERBEDA</p>
+            <ul id="selection-stats" class="mb-0">
+              <li><strong>Total Unique Products:</strong> <span id="stat-products">{{ product_data['Menu'].nunique() if product_data is not none and not product_data.empty else 0 }}</span></li>
+              <li><strong>Total Records:</strong> <span id="stat-records">{{ product_data|length if product_data is not none and not product_data.empty else 0 }}</span></li>
+              <li><strong>Branches:</strong> <span id="stat-branches">{{ product_data['Branch'].nunique() if product_data is not none and not product_data.empty else 0 }}</span></li>
+              <li><strong>Aggregation:</strong> <span class="text-danger">❌ TIDAK VALID</span></li>
+            </ul>
+          </div>
         </div>
-    </div>
-    
-    <div class="col-lg-4">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">💡 Product Insights</h5>
-            </div>
-            <div class="chart-body">
-                <div class="alert alert-info">
-                    <h6><i class="fas fa-chart-pie me-2"></i>Product Distribution</h6>
-                    <ul class="mb-0">
-                        <li><strong>Total Produk Unik:</strong> 
-                            {% if product_data is not none and not product_data.empty %}
-                                {{ product_data['Menu'].nunique() }}
-                            {% else %}
-                                0
-                            {% endif %}
-                        </li>
-                        <li><strong>Total Cabang:</strong> 
-                            {% if product_data is not none and not product_data.empty %}
-                                {{ product_data['Branch'].nunique() }}
-                            {% else %}
-                                0
-                            {% endif %}
-                        </li>
-                        <li><strong>Rata-rata Menu per Cabang:</strong> 
-                            {% if product_data is not none and not product_data.empty %}
-                                {{ (product_data.groupby('Branch')['Menu'].nunique().mean()) | round(1) }}
-                            {% else %}
-                                0
-                            {% endif %}
-                        </li>
-                        <li><strong>Range Menu per Cabang:</strong>
-                            {% if product_data is not none and not product_data.empty %}
-                                {% set branch_menu_counts = product_data.groupby('Branch')['Menu'].nunique() %}
-                                {{ branch_menu_counts.min() }} - {{ branch_menu_counts.max() }} menu
-                            {% else %}
-                                0 - 0 menu
-                            {% endif %}
-                        </li>
-                    </ul>
-                </div>
-                
-                {% if product_data is not none and not product_data.empty %}
-                    {% set product_consistency = product_data.groupby('Menu')['Branch'].nunique() %}
-                    {% set total_branches = product_data['Branch'].nunique() %}
-                    {% set universal_products = (product_consistency == total_branches).sum() %}
-                    {% set limited_products = (product_consistency < (total_branches / 2)).sum() %}
-                    
-                    <div class="alert alert-success">
-                        <h6><i class="fas fa-check-circle me-2"></i>Menu Distribution Analysis</h6>
-                        <ul class="mb-0">
-                            <li><strong>Menu Universal:</strong> {{ universal_products }} (tersedia di semua {{ total_branches }} cabang)</li>
-                            <li><strong>Menu Terbatas:</strong> {{ limited_products }} (hanya di < 50% cabang)</li>
-                            <li><strong>Menu Unik per Cabang:</strong> 
-                                {% set unique_per_branch = product_data.groupby('Branch')['Menu'].nunique() %}
-                                {% for branch, count in unique_per_branch.items() %}
-                                    <br><small>• {{ branch[:20] }}{% if branch|length > 20 %}...{% endif %}: {{ count }} menu</small>
-                                {% endfor %}
-                            </li>
-                        </ul>
-                    </div>
-                {% endif %}
-                
-                <div class="alert alert-warning">
-                    <h6><i class="fas fa-exclamation-triangle me-2"></i>Optimasi Menu per Cabang</h6>
-                    <ul class="mb-0">
-                        <li>Standardisasi menu populer ke cabang lain</li>
-                        <li>Evaluasi menu dengan performa rendah per cabang</li>
-                        <li>Cross-selling menu sukses antar cabang</li>
-                        <li>Optimasi pricing berdasarkan lokasi cabang</li>
-                        <li>Menu testing di cabang dengan variasi sedikit</li>
-                    </ul>
-                </div>
-                
-                <div class="alert alert-primary">
-                    <h6><i class="fas fa-lightbulb me-2"></i>Rekomendasi Menu Strategy</h6>
-                    <ol class="mb-0 small">
-                        <li>Fokus pada menu dengan konsistensi performa tinggi</li>
-                        <li>Analisis menu unggulan per cabang untuk ekspansi</li>
-                        <li>Standardisasi menu core di semua cabang</li>
-                        <li>Menu lokal khusus berdasarkan preferensi area</li>
-                        <li>Test menu baru di cabang dengan variasi tinggi</li>
-                        <li>Monitor performa menu baru vs menu existing</li>
-                    </ol>
-                </div>
-            </div>
+
+        <div class="alert alert-success">
+          <h6><i class="fas fa-star me-2"></i>Top Performers Overview</h6>
+          <div id="top-performers-summary">
+            <p class="mb-2">Ringkasan top performers saat ini:</p>
+            <div id="summary-content"><small class="text-muted">Pilih cabang untuk melihat summary spesifik</small></div>
+          </div>
         </div>
+
+        <div class="alert alert-primary">
+          <h6><i class="fas fa-lightbulb me-2"></i>Business Insights</h6>
+          <div class="row">
+            <div class="col-md-6">
+              <ul class="mb-0">
+                <li>Pilih cabang spesifik untuk analisis mendalam</li>
+                <li>Urutkan berdasarkan revenue, quantity, atau margin</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="mb-0">
+                <li>Perhatikan products yang konsisten di banyak cabang</li>
+                <li>Identifikasi menu unggulan per cabang</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
     </div>
+  </div>
 </div>
 
-<!-- Product Analysis by Branch - FIXED: Branch-first selection -->
+<!-- Product Analysis by Branch (Simplified: Revenue & Qty only) -->
 <div class="row mb-4">
-    <div class="col-lg-8">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">🔍 Analisis Produk Spesifik per Cabang</h5>
+  <div class="col-lg-8">
+    <div class="chart-card">
+      <div class="chart-header"><h5 class="chart-title">🔍 Analisis Produk Spesifik</h5></div>
+      <div class="chart-body">
+        <div class="row mb-3">
+          <div class="col-md-6">
+            <label for="analysisProduct" class="form-label">Pilih Produk untuk Analisis Detail:</label>
+            <select id="analysisProduct" class="form-select" disabled>
+              <option value="">-- Pilih cabang terlebih dahulu --</option>
+            </select>
+            <div class="text-muted mt-1">Dropdown akan aktif setelah cabang dipilih</div>
+          </div>
+          <div class="col-md-6">
+            <label for="productBranchInfo" class="form-label">Branch Information:</label>
+            <div id="productBranchInfo" class="form-control-plaintext bg-light rounded p-2 border">
+              <i class="fas fa-info-circle text-primary me-2"></i>
+              <span id="branchInfoText">Pilih cabang untuk melihat informasi</span>
             </div>
-            <div class="chart-body">
-                <div class="row mb-3">
-                    <div class="col-md-6">
-                        <label for="branchFilter" class="form-label">1. Pilih Cabang Terlebih Dahulu:</label>
-                        <select id="branchFilter" class="form-select">
-                            <option value="all">Semua Cabang</option>
-                            {% if product_data is not none and not product_data.empty %}
-                                {% for branch in product_data['Branch'].unique() %}
-                                <option value="{{ branch }}">{{ branch }}</option>
-                                {% endfor %}
-                            {% endif %}
-                        </select>
-                    </div>
-                    <div class="col-md-6">
-                        <label for="productSelect" class="form-label">2. Pilih Produk untuk Analisis Detail:</label>
-                        <select id="productSelect" class="form-select" disabled>
-                            <option value="">-- Pilih cabang dahulu --</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div id="product-detail-analysis" style="display: none;">
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #17a2b8, #138496); padding: 15px;">
-                                <div class="metric-value" id="total-revenue-product" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Total Revenue</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #28a745, #1e7e34); padding: 15px;">
-                                <div class="metric-value" id="total-qty-product" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Total Quantity</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #ffc107, #e0a800); padding: 15px;">
-                                <div class="metric-value" id="avg-margin-product" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Avg Margin %</div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="metric-card" style="background: linear-gradient(135deg, #dc3545, #bd2130); padding: 15px;">
-                                <div class="metric-value" id="branches-available" style="font-size: 1.2rem;">-</div>
-                                <div class="metric-label" style="font-size: 0.8rem;">Branches Available</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div id="product-comparison-chart"></div>
-                </div>
-            </div>
+            <div class="text-muted mt-1">Informasi otomatis update sesuai cabang</div>
+          </div>
         </div>
-    </div>
-    
-    <div class="col-lg-4">
-        <div class="chart-card">
-            <div class="chart-header">
-                <h5 class="chart-title">📊 Quick Stats</h5>
+
+        <!-- KPI Only -->
+        <div id="product-detail-analysis" style="display: none;">
+          <div class="row mb-3">
+            <div class="col-md-6">
+              <div class="metric-card" style="background:linear-gradient(135deg,#17a2b8,#138496); padding:15px;">
+                <div class="metric-value" id="total-revenue-product" style="font-size:1.4rem;">-</div>
+                <div class="metric-label" style="font-size:0.85rem;">Total Revenue</div>
+              </div>
             </div>
-            <div class="chart-body">
-                <div class="alert alert-primary">
-                    <h6><i class="fas fa-info-circle me-2"></i>Panduan Analisis</h6>
-                    <ul class="mb-0">
-                        <li>Pilih cabang untuk melihat menu spesifik cabang tersebut</li>
-                        <li>Setiap cabang memiliki variasi menu yang berbeda</li>
-                        <li>Bandingkan performa menu yang sama di berbagai cabang</li>
-                        <li>Identifikasi peluang ekspansi menu sukses</li>
-                    </ul>
-                </div>
-                
-                <div class="alert alert-success">
-                    <h6><i class="fas fa-star me-2"></i>Dynamic Top Performers</h6>
-                    <p class="mb-2">Pilih cabang di atas untuk melihat top performers spesifik per cabang</p>
-                    <div id="current-top-performers">
-                        <small class="text-muted">Menampilkan top performers dari semua cabang (agregat)</small>
-                    </div>
-                </div>
-                
-                <div class="alert alert-info">
-                    <h6><i class="fas fa-chart-bar me-2"></i>Debug Info</h6>
-                    <div id="debug-info">
-                        <small>
-                            {% if product_data is not none and not product_data.empty %}
-                                Total records: {{ product_data|length }}<br>
-                                Unique menus: {{ product_data['Menu'].nunique() }}<br>
-                                Unique branches: {{ product_data['Branch'].nunique() }}<br>
-                                Columns: {{ product_data.columns.tolist() | join(', ') }}
-                            {% else %}
-                                No product data loaded
-                            {% endif %}
-                        </small>
-                    </div>
-                </div>
-                
-                <div class="alert alert-info" id="branch-menu-info" style="display: none;">
-                    <h6><i class="fas fa-utensils me-2"></i>Detail Menu Cabang</h6>
-                    <p id="menu-count" class="mb-2">-</p>
-                    <div id="menu-breakdown" class="small">
-                        <div id="menu-categories"></div>
-                    </div>
-                </div>
+            <div class="col-md-6">
+              <div class="metric-card" style="background:linear-gradient(135deg,#28a745,#1e7e34); padding:15px;">
+                <div class="metric-value" id="total-qty-product" style="font-size:1.4rem;">-</div>
+                <div class="metric-label" style="font-size:0.85rem;">Total Quantity</div>
+              </div>
             </div>
+          </div>
         </div>
+        <!-- /KPI Only -->
+      </div>
     </div>
+  </div>
+
+
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_css %}
 <style>
-    #product-detail-analysis {
-        animation: fadeIn 0.5s ease-in;
-    }
-    
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    
-    .table td, .table th {
-        vertical-align: middle;
-    }
-    
-    .alert {
-        border-radius: 8px;
-        border: none;
-    }
-    
-    .alert h6 {
-        margin-bottom: 10px;
-        font-weight: 600;
-    }
-    
-    .chart-card {
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-        margin-bottom: 30px;
-        overflow: hidden;
-        border: 1px solid #e9ecef;
-    }
-    
-    .chart-header {
-        background: linear-gradient(90deg, #f8f9fa 0%, #e9ecef 100%);
-        padding: 20px 25px;
-        border-bottom: 2px solid var(--primary-color, #005A5B);
-    }
-    
-    .chart-title {
-        margin: 0;
-        color: var(--primary-color, #005A5B);
-        font-weight: 600;
-        font-size: 1.1rem;
-    }
-    
-    .metric-card {
-        border-radius: 12px;
-        color: white;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-        position: relative;
-        overflow: hidden;
-    }
-    
-    .metric-card .metric-value {
-        font-size: 2.2rem;
-        font-weight: 700;
-        margin-bottom: 5px;
-        position: relative;
-        z-index: 2;
-    }
-    
-    .metric-card .metric-label {
-        font-size: 0.95rem;
-        opacity: 0.9;
-        font-weight: 500;
-        position: relative;
-        z-index: 2;
-    }
-    
-    .metric-card .metric-icon {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        font-size: 2.5rem;
-        opacity: 0.3;
-        z-index: 1;
-    }
-    
-    .status-excellent { background: #32CD32; }
-    .status-good { background: #20B2AA; }
-    .status-fair { background: #FF8C00; }
-    .status-poor { background: #DC143C; }
-    
-    .badge {
-        padding: 6px 12px;
-        border-radius: 20px;
-        font-weight: 500;
-        font-size: 0.8rem;
-    }
-    
-    .data-table {
-        background: white;
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-        border: 1px solid #e9ecef;
-    }
-    
-    .form-select:disabled {
-        background-color: #e9ecef;
-        opacity: 0.6;
-    }
+  #product-detail-analysis { animation: fadeIn 0.5s ease-in; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(20px);} to { opacity:1; transform:translateY(0);} }
+  .table td,.table th{ vertical-align: middle; }
+  .alert{ border-radius:8px; border:none; }
+  .alert h6{ margin-bottom:10px; font-weight:600; }
+  .chart-card{ background:#fff; border-radius:12px; box-shadow:0 2px 15px rgba(0,0,0,0.08); margin-bottom:30px; overflow:hidden; border:1px solid #e9ecef; }
+  .chart-header{ background:linear-gradient(90deg,#f8f9fa 0%,#e9ecef 100%); padding:20px 25px; border-bottom:2px solid var(--primary-color,#005A5B); }
+  .chart-title{ margin:0; color:var(--primary-color,#005A5B); font-weight:600; font-size:1.1rem; }
+  .metric-card{ border-radius:12px; color:#fff; box-shadow:0 4px 20px rgba(0,0,0,0.1); position:relative; overflow:hidden; }
+  .metric-card .metric-value{ font-size:2.2rem; font-weight:700; margin-bottom:5px; position:relative; z-index:2; }
+  .metric-card .metric-label{ font-size:0.95rem; opacity:0.9; font-weight:500; position:relative; z-index:2; }
+  .metric-card .metric-icon{ position:absolute; top:20px; right:20px; font-size:2.5rem; opacity:0.3; z-index:1; }
+  .status-excellent{ background:#32CD32; } .status-good{ background:#20B2AA; } .status-fair{ background:#FF8C00; } .status-poor{ background:#DC143C; }
+  .badge{ padding:6px 12px; border-radius:20px; font-weight:500; font-size:0.8rem; }
+  #productBranchInfo{ min-height:40px; display:flex; align-items:center; background-color:#f8f9fa !important; }
+  .form-control-plaintext{ padding:0.375rem 0.75rem; }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize charts
-    initializeProductCharts();
-    
-    // Initialize product analysis - FIXED: Branch-first selection
-    initializeProductAnalysis();
-});
-
-function initializeProductCharts() {
-    // Top Revenue Chart
-    {% if charts and charts.top_revenue %}
-    try {
-        const topRevenueData = {{ charts.top_revenue | safe }};
-        Plotly.newPlot('top-revenue-chart', topRevenueData.data, topRevenueData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error loading top revenue chart:', error);
-    }
-    {% endif %}
-    
-    // Top Quantity Chart
-    {% if charts and charts.top_quantity %}
-    try {
-        const topQuantityData = {{ charts.top_quantity | safe }};
-        Plotly.newPlot('top-quantity-chart', topQuantityData.data, topQuantityData.layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error loading top quantity chart:', error);
-    }
-    {% endif %}
-}
+document.addEventListener('DOMContentLoaded', function(){ initializeProductAnalysis(); });
 
 function initializeProductAnalysis() {
-    const branchFilter = document.getElementById('branchFilter');
-    const productSelect = document.getElementById('productSelect');
-    const detailAnalysis = document.getElementById('product-detail-analysis');
-    const branchMenuInfo = document.getElementById('branch-menu-info');
-    const topPerformerBranch = document.getElementById('topPerformerBranch');
-    const topPerformerCount = document.getElementById('topPerformerCount');
-    
-    if (!branchFilter || !productSelect || !detailAnalysis) {
-        console.log('Product analysis elements not found, skipping initialization');
-        return;
-    }
-    
-    // Product data for analysis
-    {% if product_data is not none and not product_data.empty %}
-    const productData = {{ product_data.to_dict('records') | safe }};
-    console.log('Product data loaded:', productData.length, 'records');
-    console.log('Sample data:', productData.slice(0, 3));
-    
-    // Debug: Check unique menus and branches
-    const uniqueMenus = [...new Set(productData.map(item => item.Menu))];
-    const uniqueBranches = [...new Set(productData.map(item => item.Branch))];
-    console.log('Unique menus:', uniqueMenus.length, uniqueMenus.slice(0, 10));
-    console.log('Unique branches:', uniqueBranches.length, uniqueBranches);
-    
-    // Update debug info
-    const debugInfo = document.getElementById('debug-info');
-    if (debugInfo) {
-        debugInfo.innerHTML = `
-            <small>
-                Total records: ${productData.length}<br>
-                Unique menus loaded: ${uniqueMenus.length}<br>
-                Unique branches loaded: ${uniqueBranches.length}<br>
-                Branches: ${uniqueBranches.join(', ')}<br>
-                Sample menus: ${uniqueMenus.slice(0, 5).join(', ')}...
-            </small>
-        `;
-    }
-    {% else %}
-    const productData = [];
-    console.warn('No product data available');
-    {% endif %}
-    
-    // Branch filter change - populate products based on selected branch
-    branchFilter.addEventListener('change', function() {
-        const selectedBranch = this.value;
-        console.log('Branch filter changed to:', selectedBranch);
-        populateProductSelect(selectedBranch, productData);
-        detailAnalysis.style.display = 'none';
-    });
-    
-    // Product select change
-    productSelect.addEventListener('change', function() {
-        const selectedProduct = this.value;
-        const selectedBranch = branchFilter.value;
-        
-        if (selectedProduct && productData.length > 0) {
-            showProductDetails(selectedProduct, selectedBranch, productData);
-            detailAnalysis.style.display = 'block';
-        } else {
-            detailAnalysis.style.display = 'none';
-        }
-    });
-    
-    // Top Performer filters
-    if (topPerformerBranch && topPerformerCount) {
-        topPerformerBranch.addEventListener('change', function() {
-            updateTopPerformersTable(productData);
-        });
-        
-        topPerformerCount.addEventListener('change', function() {
-            updateTopPerformersTable(productData);
-        });
-        
-        // Initial load
-        updateTopPerformersTable(productData);
-    }
-}
+  const branchSelect = document.getElementById('branchSelect');
+  const topCount     = document.getElementById('topCount');
+  const sortBy       = document.getElementById('sortBy');
+  const analysisProduct = document.getElementById('analysisProduct');
+  const detailAnalysis  = document.getElementById('product-detail-analysis');
+  const showFullNames   = document.getElementById('showFullNames');
 
-function populateProductSelect(selectedBranch, allData) {
-    const productSelect = document.getElementById('productSelect');
-    const branchMenuInfo = document.getElementById('branch-menu-info');
-    
-    if (!productSelect || allData.length === 0) {
-        return;
-    }
-    
-    // Clear existing options
-    productSelect.innerHTML = '<option value="">-- Pilih produk --</option>';
-    
-    if (selectedBranch === 'all') {
-        // Show all products from all branches
-        const allProducts = [...new Set(allData.map(item => item.Menu))].sort();
-        allProducts.forEach(product => {
-            const option = document.createElement('option');
-            option.value = product;
-            option.textContent = product;
-            productSelect.appendChild(option);
-        });
-        
-        productSelect.disabled = false;
-        if (branchMenuInfo) {
-            branchMenuInfo.style.display = 'block';
-            
-            // Calculate branch menu statistics
-            const branchMenuCounts = {};
-            allData.forEach(item => {
-                if (!branchMenuCounts[item.Branch]) {
-                    branchMenuCounts[item.Branch] = new Set();
-                }
-                branchMenuCounts[item.Branch].add(item.Menu);
-            });
-            
-            const menuCountsArray = Object.values(branchMenuCounts).map(set => set.size);
-            const avgMenus = menuCountsArray.reduce((a, b) => a + b, 0) / menuCountsArray.length;
-            const minMenus = Math.min(...menuCountsArray);
-            const maxMenus = Math.max(...menuCountsArray);
-            
-            document.getElementById('menu-count').textContent = 
-                `Total ${allProducts.length} produk unik | Rata-rata ${avgMenus.toFixed(1)} menu per cabang (Range: ${minMenus}-${maxMenus})`;
-            
-            // Show breakdown per branch
-            const menuCategoriesDiv = document.getElementById('menu-categories');
-            if (menuCategoriesDiv) {
-                let breakdownHtml = '<strong>Menu per Cabang:</strong><br>';
-                Object.entries(branchMenuCounts).forEach(([branch, menuSet]) => {
-                    breakdownHtml += `<span class="badge bg-secondary me-1 mb-1">${branch}: ${menuSet.size} menu</span>`;
-                });
-                menuCategoriesDiv.innerHTML = breakdownHtml;
-            }
-        }
-        
-    } else if (selectedBranch) {
-        // Show products only from selected branch
-        const branchData = allData.filter(item => item.Branch === selectedBranch);
-        const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
-        
-        branchProducts.forEach(product => {
-            const option = document.createElement('option');
-            option.value = product;
-            option.textContent = product;
-            productSelect.appendChild(option);
-        });
-        
-        productSelect.disabled = false;
-        if (branchMenuInfo) {
-            branchMenuInfo.style.display = 'block';
-            document.getElementById('menu-count').textContent = 
-                `${branchProducts.length} menu tersedia di ${selectedBranch}`;
-            
-            // Show menu categories if available
-            const menuCategoriesDiv = document.getElementById('menu-categories');
-            if (menuCategoriesDiv && branchData.length > 0) {
-                const categories = {};
-                branchData.forEach(item => {
-                    const category = item['Menu Category'] || 'Other';
-                    if (!categories[category]) {
-                        categories[category] = new Set();
-                    }
-                    categories[category].add(item.Menu);
-                });
-                
-                let categoryHtml = '<strong>Kategori Menu:</strong><br>';
-                Object.entries(categories).forEach(([category, menuSet]) => {
-                    categoryHtml += `<span class="badge bg-info me-1 mb-1">${category}: ${menuSet.size}</span>`;
-                });
-                menuCategoriesDiv.innerHTML = categoryHtml;
-            }
-        }
-        
+  if (!branchSelect || !topCount || !sortBy) return;
+
+  {% if product_data is not none and not product_data.empty %}
+  const productData = {{ product_data.to_dict('records') | safe }};
+
+  branchSelect.addEventListener('change', function(){
+    updateTopPerformersTable(productData);
+    updateSelectionInfo(productData);
+    updateProductDropdown(productData);
+  });
+  topCount.addEventListener('change', function(){ if (branchSelect.value) updateTopPerformersTable(productData); });
+  sortBy.addEventListener('change', function(){ if (branchSelect.value) updateTopPerformersTable(productData); });
+  if (showFullNames) showFullNames.addEventListener('change', function(){ if (branchSelect.value) updateTopPerformersTable(productData); });
+
+  analysisProduct.addEventListener('change', function(){
+    const selectedProduct = this.value;
+    const selectedBranch  = branchSelect.value;
+    if (selectedProduct && selectedBranch) {
+      showProductDetails(selectedProduct, selectedBranch, productData);
+      if (detailAnalysis) detailAnalysis.style.display = 'block';
     } else {
-        productSelect.disabled = true;
-        if (branchMenuInfo) {
-            branchMenuInfo.style.display = 'none';
-        }
+      if (detailAnalysis) detailAnalysis.style.display = 'none';
     }
+  });
+
+  updateSelectionInfo(productData);
+  {% else %}
+  const productData = [];
+  {% endif %}
 }
 
-function showProductDetails(productName, selectedBranch, allData) {
-    if (allData.length === 0) {
-        return;
-    }
-    
-    // Filter data for selected product
-    let productData = allData.filter(item => item.Menu === productName);
-    
-    // Apply branch filter if specific branch selected
-    if (selectedBranch && selectedBranch !== 'all') {
-        productData = productData.filter(item => item.Branch === selectedBranch);
-    }
-    
-    if (productData.length === 0) {
-        return;
-    }
-    
-    // Calculate product metrics
-    const totalRevenue = productData.reduce((sum, item) => sum + (item.Total || 0), 0);
-    const totalQty = productData.reduce((sum, item) => sum + (item.Qty || 0), 0);
-    const totalMargin = productData.reduce((sum, item) => sum + (item.Margin || 0), 0);
-    const avgMargin = totalRevenue > 0 ? (totalMargin / totalRevenue * 100) : 0;
-    const branchesAvailable = productData.length;
-    
-    // Update metric cards
-    document.getElementById('total-revenue-product').textContent = formatCurrency(totalRevenue);
-    document.getElementById('total-qty-product').textContent = formatNumber(totalQty);
-    document.getElementById('avg-margin-product').textContent = avgMargin.toFixed(1) + '%';
-    document.getElementById('branches-available').textContent = branchesAvailable;
-    
-    // Create product comparison chart
-    createProductComparisonChart(productData, productName);
+/* Helpers */
+function truncateName(name, limit=50, showFull=false){
+  if (!name) return '';
+  if (showFull || name.length <= limit) return name;
+  return name.substring(0,limit) + '…';
+}
+function num(x){ return Number(x) || 0; }
+
+/* Top performers */
+function updateTopPerformersTable(allData){
+  const selectedBranch = document.getElementById('branchSelect').value;
+  const countRaw = document.getElementById('topCount').value;
+  const sortBy   = document.getElementById('sortBy').value;
+  const tableContainer = document.getElementById('top-performers-table');
+  const showFull = document.getElementById('showFullNames')?.checked;
+
+  if (!tableContainer || allData.length === 0) return;
+
+  if (!selectedBranch){
+    tableContainer.innerHTML = `
+      <div class="alert alert-warning text-center">
+        <h6><i class="fas fa-info-circle me-2"></i>Pilih Cabang Terlebih Dahulu</h6>
+        <p class="mb-0">Setiap cabang memiliki menu yang unik dan berbeda.<br>Silakan pilih cabang dari dropdown di atas untuk melihat top performers spesifik cabang tersebut.</p>
+      </div>`;
+    return;
+  }
+
+  const branchData = allData.filter(i => i.Branch === selectedBranch);
+  if (branchData.length === 0){
+    tableContainer.innerHTML = `
+      <div class="alert alert-danger text-center">
+        <h6><i class="fas fa-exclamation-triangle me-2"></i>No Data</h6>
+        <p class="mb-0">No data available for branch: <strong>${selectedBranch}</strong></p>
+      </div>`;
+    return;
+  }
+
+  const productStats = {};
+  branchData.forEach(item=>{
+    if (!productStats[item.Menu]) productStats[item.Menu] = { Menu:item.Menu, Total:0, Qty:0, Margin:0, branch:selectedBranch };
+    productStats[item.Menu].Total += num(item.Total);
+    productStats[item.Menu].Qty   += num(item.Qty);
+    productStats[item.Menu].Margin+= num(item.Margin);
+  });
+
+  const products = Object.values(productStats).map(p=>({
+    ...p,
+    Margin_Percentage: p.Total>0 ? (p.Margin/p.Total*100) : 0,
+    Avg_Price: p.Qty>0 ? (p.Total/p.Qty) : 0
+  }));
+
+  let sortField = 'Total';
+  if (sortBy==='quantity') sortField='Qty';
+  else if (sortBy==='margin') sortField='Margin_Percentage';
+
+  const sorted = products.sort((a,b)=> b[sortField]-a[sortField]);
+
+  const showAll = (countRaw === 'all');
+  const count   = showAll ? sorted.length : parseInt(countRaw,10);
+  const topProducts = sorted.slice(0,count);
+
+  tableContainer.innerHTML = `
+    <div class="table-responsive">
+      <table class="table" id="topPerformersTable">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Produk (${selectedBranch})</th>
+            <th>Revenue</th>
+            <th>Quantity</th>
+            <th>Margin %</th>
+            <th>Avg Price</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="topPerformersBody"></tbody>
+      </table>
+    </div>`;
+
+  const tbody = document.getElementById('topPerformersBody');
+  topProducts.forEach((p, idx)=>{
+    let rankBadge='status-fair';
+    if (idx<3) rankBadge='status-excellent';
+    else if (idx<count/2) rankBadge='status-good';
+
+    let marginBadge='status-poor';
+    if (p.Margin_Percentage>30) marginBadge='status-excellent';
+    else if (p.Margin_Percentage>20) marginBadge='status-good';
+    else if (p.Margin_Percentage>10) marginBadge='status-fair';
+
+    let statusBadge='status-poor', statusText='Needs Review';
+    if (idx<3 && p.Margin_Percentage>20){ statusBadge='status-excellent'; statusText='Star Product'; }
+    else if (idx<count/2 && p.Margin_Percentage>15){ statusBadge='status-good'; statusText='Good Performer'; }
+    else if (p.Margin_Percentage>10){ statusBadge='status-fair'; statusText='Average'; }
+
+    const displayName = truncateName(p.Menu, 50, showFull);
+    const safeTitle = String(p.Menu||'').replace(/"/g,'&quot;');
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge ${rankBadge}">#${idx+1}</span></td>
+      <td title="${safeTitle}"><strong>${displayName}</strong></td>
+      <td>${formatCurrency(p.Total)}</td>
+      <td>${formatNumber(p.Qty)}</td>
+      <td><span class="badge ${marginBadge}">${p.Margin_Percentage.toFixed(1)}%</span></td>
+      <td>${formatCurrency(p.Avg_Price)}</td>
+      <td><span class="badge ${statusBadge}">${statusText}</span></td>`;
+    tbody.appendChild(tr);
+  });
+
+  if (showAll){
+    const info = document.createElement('div');
+    info.className = 'text-muted mt-2';
+    info.innerHTML = '<small>Menampilkan semua produk untuk cabang ini.</small>';
+    tableContainer.appendChild(info);
+  }
+
+  updateTopPerformersSummary(topProducts, selectedBranch, sortBy);
 }
 
-function createProductComparisonChart(productData, productName) {
-    if (productData.length === 0) {
-        return;
-    }
-    
-    // If only one branch, show different metrics
-    if (productData.length === 1) {
-        const item = productData[0];
-        const chartData = [{
-            values: [item.Total || 0, item.Margin || 0, (item['COGS Total'] || 0)],
-            labels: ['Revenue', 'Margin', 'COGS'],
-            type: 'pie',
-            textinfo: 'label+percent',
-            textposition: 'outside',
-            marker: {
-                colors: ['#1f77b4', '#2ca02c', '#d62728']
-            }
-        }];
-        
-        const layout = {
-            title: `Breakdown ${productName} - ${item.Branch}`,
-            height: 400,
-            margin: { t: 50, l: 20, r: 20, b: 20 }
-        };
-        
-        try {
-            Plotly.newPlot('product-comparison-chart', chartData, layout, {
-                responsive: true,
-                displayModeBar: false
-            });
-        } catch (error) {
-            console.error('Error creating product pie chart:', error);
-        }
-        return;
-    }
-    
-    // Multiple branches - show comparison
-    const branches = productData.map(item => item.Branch || 'Unknown');
-    const revenues = productData.map(item => item.Total || 0);
-    const margins = productData.map(item => item.Margin_Percentage || 0);
-    
-    const chartData = [
-        {
-            x: branches,
-            y: revenues,
-            type: 'bar',
-            name: 'Revenue',
-            yaxis: 'y',
-            marker: { color: '#1f77b4' }
-        },
-        {
-            x: branches,
-            y: margins,
-            type: 'scatter',
-            mode: 'lines+markers',
-            name: 'Margin %',
-            yaxis: 'y2',
-            line: { color: '#ff7f0e', width: 3 },
-            marker: { size: 8 }
-        }
-    ];
-    
-    const layout = {
-        title: `Performa ${productName} per Cabang`,
-        xaxis: { 
-            title: 'Cabang',
-            tickangle: 45
-        },
-        yaxis: {
-            title: 'Revenue (Rp)',
-            side: 'left',
-            tickformat: ',.0f'
-        },
-        yaxis2: {
-            title: 'Margin (%)',
-            side: 'right',
-            overlaying: 'y',
-            tickformat: '.1f'
-        },
-        margin: { t: 50, l: 80, r: 80, b: 120 },
-        height: 400,
-        showlegend: true
-    };
-    
-    try {
-        Plotly.newPlot('product-comparison-chart', chartData, layout, {
-            responsive: true,
-            displayModeBar: false
-        });
-    } catch (error) {
-        console.error('Error creating product comparison chart:', error);
-    }
+/* Right panel info */
+function updateSelectionInfo(allData){
+  const selectedBranch = document.getElementById('branchSelect').value;
+  const selectionText  = document.getElementById('selection-text');
+  const statProducts   = document.getElementById('stat-products');
+  const statRecords    = document.getElementById('stat-records');
+  const statBranches   = document.getElementById('stat-branches');
+  if (!selectionText || allData.length===0) return;
+
+  if (!selectedBranch){
+    selectionText.textContent = 'Setiap cabang memiliki menu yang UNIK dan BERBEDA';
+    if (statProducts) statProducts.textContent = 'N/A';
+    if (statRecords)  statRecords.textContent  = 'N/A';
+    if (statBranches) statBranches.textContent = 'N/A';
+    return;
+  }
+
+  const branchData = allData.filter(i=>i.Branch===selectedBranch);
+  const uniqueProducts = new Set(branchData.map(i=>i.Menu)).size;
+
+  selectionText.textContent = `Menampilkan menu spesifik untuk: ${selectedBranch}`;
+  if (statProducts) statProducts.textContent = uniqueProducts;
+  if (statRecords)  statRecords.textContent  = branchData.length;
+  if (statBranches) statBranches.textContent = '1 (Selected)';
 }
 
-function updateTopPerformersTable(allData) {
-    const selectedBranch = document.getElementById('topPerformerBranch').value;
-    const count = parseInt(document.getElementById('topPerformerCount').value);
-    const tbody = document.getElementById('topPerformersBody');
-    const currentTopPerformers = document.getElementById('current-top-performers');
-    
-    if (!tbody || allData.length === 0) {
-        return;
-    }
-    
-    console.log('Updating top performers for branch:', selectedBranch, 'count:', count);
-    
-    // Filter data based on selected branch
-    let filteredData = allData;
-    if (selectedBranch !== 'all') {
-        filteredData = allData.filter(item => item.Branch === selectedBranch);
-        console.log('Filtered data for branch:', filteredData.length, 'records');
-    }
-    
-    if (filteredData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No data available for selected branch</td></tr>';
-        return;
-    }
-    
-    // Aggregate products
-    const productStats = {};
-    filteredData.forEach(item => {
-        if (!productStats[item.Menu]) {
-            productStats[item.Menu] = {
-                Menu: item.Menu,
-                Total: 0,
-                Qty: 0,
-                Margin: 0,
-                branches: new Set()
-            };
-        }
-        productStats[item.Menu].Total += (item.Total || 0);
-        productStats[item.Menu].Qty += (item.Qty || 0);
-        productStats[item.Menu].Margin += (item.Margin || 0);
-        productStats[item.Menu].branches.add(item.Branch);
-    });
-    
-    // Convert to array and calculate percentages
-    const products = Object.values(productStats).map(product => ({
-        ...product,
-        Margin_Percentage: product.Total > 0 ? (product.Margin / product.Total * 100) : 0,
-        branch_count: product.branches.size
-    }));
-    
-    // Sort by revenue and take top N
-    const topProducts = products
-        .sort((a, b) => b.Total - a.Total)
-        .slice(0, count);
-    
-    console.log('Top products calculated:', topProducts.length);
-    
-    // Update table
-    tbody.innerHTML = '';
-    topProducts.forEach((product, index) => {
-        const row = document.createElement('tr');
-        
-        let rankBadge = 'status-fair';
-        if (index < 3) rankBadge = 'status-excellent';
-        else if (index < count / 2) rankBadge = 'status-good';
-        
-        let marginBadge = 'status-poor';
-        if (product.Margin_Percentage > 30) marginBadge = 'status-excellent';
-        else if (product.Margin_Percentage > 20) marginBadge = 'status-good';
-        else if (product.Margin_Percentage > 10) marginBadge = 'status-fair';
-        
-        let statusBadge = 'status-poor';
-        let statusText = 'Needs Review';
-        if (index < 3 && product.Margin_Percentage > 20) {
-            statusBadge = 'status-excellent';
-            statusText = 'Star Product';
-        } else if (index < count / 2 && product.Margin_Percentage > 15) {
-            statusBadge = 'status-good';
-            statusText = 'Good Performer';
-        } else if (product.Margin_Percentage > 10) {
-            statusBadge = 'status-fair';
-            statusText = 'Average';
-        }
-        
-        row.innerHTML = `
-            <td><span class="badge ${rankBadge}">#${index + 1}</span></td>
-            <td><strong>${product.Menu.length > 30 ? product.Menu.substring(0, 30) + '...' : product.Menu}</strong></td>
-            <td>${formatCurrency(product.Total)}</td>
-            <td>${formatNumber(product.Qty)}</td>
-            <td><span class="badge ${marginBadge}">${product.Margin_Percentage.toFixed(1)}%</span></td>
-            <td><span class="badge bg-info">${product.branch_count}</span></td>
-            <td><span class="badge ${statusBadge}">${statusText}</span></td>
-        `;
-        
-        tbody.appendChild(row);
-    });
-    
-    // Update info text
-    if (currentTopPerformers) {
-        const branchText = selectedBranch === 'all' ? 'semua cabang (agregat)' : selectedBranch;
-        currentTopPerformers.innerHTML = `
-            <small class="text-success">
-                Menampilkan top ${count} performers dari <strong>${branchText}</strong>
-                ${selectedBranch !== 'all' ? `(${filteredData.length} total records)` : ''}
-            </small>
-        `;
-    }
+function updateTopPerformersSummary(topProducts, selectedBranch, sortBy){
+  const el = document.getElementById('summary-content');
+  if (!el || !selectedBranch){
+    if (el) el.innerHTML = '<div class="text-muted">Pilih cabang untuk melihat summary</div>';
+    return;
+  }
+  if (topProducts.length===0){
+    el.innerHTML = '<div class="text-danger">No products found for selected branch</div>';
+    return;
+  }
+
+  const top3 = topProducts.slice(0,3);
+  const totalRevenue = topProducts.reduce((s,p)=>s+p.Total,0);
+  const avgMargin    = topProducts.reduce((s,p)=>s+p.Margin_Percentage,0)/topProducts.length;
+  const sortText = sortBy==='revenue' ? 'revenue' : sortBy==='quantity' ? 'quantity' : 'margin';
+
+  el.innerHTML = `
+    <div>
+      <p class="mb-2"><strong>Top 3 by ${sortText} di ${selectedBranch}:</strong></p>
+      <ol class="mb-3">
+        ${top3.map(p=>`<li>${(p.Menu||'').substring(0,30)}${(p.Menu||'').length>30?'…':''}</li>`).join('')}
+      </ol>
+      <div class="row">
+        <div class="col-md-6">
+          <ul class="mb-0">
+            <li><strong>Total Revenue:</strong> ${formatCurrency(totalRevenue)}</li>
+            <li><strong>Avg Margin:</strong> ${avgMargin.toFixed(1)}%</li>
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <ul class="mb-0">
+            <li><strong>Products Analyzed:</strong> ${topProducts.length}</li>
+            <li><strong>Branch-Specific:</strong> <span class="text-success">✅ Valid</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>`;
 }
 
-// Add this new function after the existing functions
-function formatCurrency(value) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0
-    }).format(value || 0);
+/* Dropdown Produk */
+function updateProductDropdown(allData){
+  const selectedBranch = document.getElementById('branchSelect').value;
+  const analysisProduct= document.getElementById('analysisProduct');
+  const branchInfoText = document.getElementById('branchInfoText');
+
+  if (!analysisProduct || !selectedBranch){
+    analysisProduct.innerHTML = '<option value="">-- Pilih cabang terlebih dahulu --</option>';
+    analysisProduct.disabled = true;
+    if (branchInfoText) branchInfoText.innerHTML = '<i class="fas fa-info-circle text-primary me-2"></i>Pilih cabang untuk melihat informasi';
+    return;
+  }
+
+  const branchData = allData.filter(i=>i.Branch===selectedBranch);
+  const branchProducts = [...new Set(branchData.map(i=>i.Menu))].sort();
+
+  analysisProduct.innerHTML = '<option value="">-- Pilih produk untuk analisis detail --</option>';
+  branchProducts.forEach(product=>{
+    const opt = document.createElement('option');
+    opt.value = product;
+    opt.textContent = product.length>60 ? product.substring(0,60)+'…' : product;
+    analysisProduct.appendChild(opt);
+  });
+
+  analysisProduct.disabled = false;
+
+  if (branchInfoText){
+    branchInfoText.innerHTML = `
+      <i class="fas fa-store text-success me-2"></i>
+      <strong>${selectedBranch}</strong> - ${branchProducts.length} menu tersedia
+    `;
+  }
 }
 
-function formatNumber(value) {
-    return new Intl.NumberFormat('id-ID').format(value || 0);
+/* Detail Produk (Revenue & Qty only) */
+function showProductDetails(productName, selectedBranch, allData){
+  if (!Array.isArray(allData) || allData.length===0 || !selectedBranch) return;
+  const items = allData.filter(i=> i.Menu===productName && i.Branch===selectedBranch);
+  if (items.length===0) return;
+
+  const totalRevenue = items.reduce((s,x)=> s + (Number(x.Total)||0), 0);
+  const totalQty     = items.reduce((s,x)=> s + (Number(x.Qty)||0), 0);
+
+  const revEl = document.getElementById('total-revenue-product');
+  const qtyEl = document.getElementById('total-qty-product');
+  if (revEl) revEl.textContent = formatCurrency(totalRevenue);
+  if (qtyEl) qtyEl.textContent = formatNumber(totalQty);
+
+  const detailAnalysis = document.getElementById('product-detail-analysis');
+  if (detailAnalysis) detailAnalysis.style.display = 'block';
+}
+
+/* Utilities */
+function formatCurrency(value){
+  return new Intl.NumberFormat('id-ID',{ style:'currency', currency:'IDR', minimumFractionDigits:0 }).format(value||0);
+}
+function formatNumber(value){
+  return new Intl.NumberFormat('id-ID').format(value||0);
 }
 </script>
 {% endblock %}

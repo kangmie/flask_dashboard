@@ -1,0 +1,525 @@
+/**
+ * FIXED COGS Analysis Styles
+ * File: static/css/cogs-analysis-fixed.css
+ * 
+ * Enhanced styling for the improved COGS analysis functionality
+ */
+
+/* Branch Selection Styling */
+.branch-selection-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid var(--primary-color, #005A5B);
+}
+
+.branch-selection-section .form-label {
+    font-weight: 600;
+    color: var(--primary-color, #005A5B);
+}
+
+.form-select.branch-first {
+    border: 2px solid var(--primary-color, #005A5B);
+    border-radius: 8px;
+    padding: 10px 15px;
+    font-weight: 500;
+}
+
+.form-select.branch-first:focus {
+    border-color: var(--secondary-color, #008B8B);
+    box-shadow: 0 0 0 0.2rem rgba(0, 90, 91, 0.25);
+}
+
+.form-select:disabled {
+    background-color: #e9ecef;
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Branch Info Card */
+.branch-info-card {
+    background: linear-gradient(135deg, #e8f5f5 0%, #f0f8f8 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 15px 0;
+    border-left: 4px solid var(--accent-color, #20B2AA);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.branch-info-card h6 {
+    color: var(--primary-color, #005A5B);
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.branch-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.branch-stat-item {
+    text-align: center;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    border: 1px solid rgba(32, 178, 170, 0.2);
+}
+
+.branch-stat-value {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--primary-color, #005A5B);
+}
+
+.branch-stat-label {
+    font-size: 0.85rem;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+/* Product Analysis Cards */
+.product-analysis-section {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    margin-bottom: 30px;
+}
+
+.product-analysis-header {
+    background: linear-gradient(90deg, var(--primary-color, #005A5B) 0%, var(--secondary-color, #008B8B) 100%);
+    color: white;
+    padding: 20px 25px;
+    position: relative;
+}
+
+.product-analysis-header::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 10px solid var(--secondary-color, #008B8B);
+}
+
+.product-analysis-title {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+.product-analysis-body {
+    padding: 25px;
+}
+
+/* Cross-Branch Comparison Styling */
+.cross-branch-section {
+    margin-top: 30px;
+}
+
+.comparison-highlight {
+    background: linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%);
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.comparison-highlight h6 {
+    color: #856404;
+    margin-bottom: 10px;
+}
+
+/* Enhanced Table Styling for Cross-Branch */
+.cross-branch-table {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+}
+
+.cross-branch-table .table {
+    margin: 0;
+}
+
+.cross-branch-table .table thead th {
+    background: linear-gradient(90deg, var(--primary-color, #005A5B) 0%, var(--secondary-color, #008B8B) 100%);
+    color: white;
+    border: none;
+    padding: 15px 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+
+.cross-branch-table .table tbody tr.table-primary {
+    background-color: rgba(255, 107, 53, 0.1);
+    border-left: 4px solid #FF6B35;
+}
+
+.cross-branch-table .table tbody td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f3f4;
+    vertical-align: middle;
+}
+
+.cross-branch-table .table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Efficiency Progress Bars */
+.efficiency-progress {
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #e9ecef;
+    position: relative;
+}
+
+.efficiency-progress .progress-bar {
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 20px;
+    transition: width 0.6s ease;
+}
+
+.efficiency-progress .progress-bar.bg-success {
+    background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+}
+
+.efficiency-progress .progress-bar.bg-warning {
+    background: linear-gradient(90deg, #ffc107 0%, #fd7e14 100%);
+}
+
+.efficiency-progress .progress-bar.bg-danger {
+    background: linear-gradient(90deg, #dc3545 0%, #e83e8c 100%);
+}
+
+/* Chart Container Enhanced */
+.chart-container {
+    position: relative;
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid #e9ecef;
+}
+
+.chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary-color, #005A5B) 0%, var(--accent-color, #20B2AA) 100%);
+    border-radius: 12px 12px 0 0;
+}
+
+.chart-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: #6c757d;
+}
+
+.chart-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e9ecef;
+    border-top: 4px solid var(--primary-color, #005A5B);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Enhanced Status Badges */
+.status-badge-enhanced {
+    position: relative;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.status-badge-enhanced.status-excellent {
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border-color: #28a745;
+}
+
+.status-badge-enhanced.status-excellent:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+}
+
+.status-badge-enhanced.status-good {
+    background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+    color: white;
+    border-color: #20c997;
+}
+
+.status-badge-enhanced.status-good:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(32, 201, 151, 0.3);
+}
+
+.status-badge-enhanced.status-fair {
+    background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
+    color: #212529;
+    border-color: #ffc107;
+}
+
+.status-badge-enhanced.status-fair:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+}
+
+.status-badge-enhanced.status-poor {
+    background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+    color: white;
+    border-color: #dc3545;
+}
+
+.status-badge-enhanced.status-poor:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+}
+
+/* Insights Panel */
+.insights-panel {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 20px 0;
+    border: 1px solid #e9ecef;
+    position: relative;
+}
+
+.insights-panel::before {
+    content: '💡';
+    position: absolute;
+    top: -15px;
+    left: 20px;
+    background: var(--primary-color, #005A5B);
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+}
+
+.insights-panel h6 {
+    color: var(--primary-color, #005A5B);
+    margin-bottom: 15px;
+    font-weight: 600;
+    padding-left: 20px;
+}
+
+.insights-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.insights-list li {
+    padding: 8px 0;
+    padding-left: 25px;
+    position: relative;
+    border-bottom: 1px solid rgba(0, 90, 91, 0.1);
+}
+
+.insights-list li:last-child {
+    border-bottom: none;
+}
+
+.insights-list li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent-color, #20B2AA);
+    font-weight: bold;
+}
+
+/* Exclusive Product Indicator */
+.exclusive-product-badge {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 10px;
+}
+
+.exclusive-product-badge::before {
+    content: '⭐';
+    margin-right: 5px;
+}
+
+/* Loading States */
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    border-radius: 12px;
+}
+
+.loading-content {
+    text-align: center;
+    color: var(--primary-color, #005A5B);
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 5px solid #e9ecef;
+    border-top: 5px solid var(--primary-color, #005A5B);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .branch-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .cross-branch-table .table thead th {
+        padding: 10px 8px;
+        font-size: 0.8rem;
+    }
+    
+    .cross-branch-table .table tbody td {
+        padding: 8px;
+        font-size: 0.85rem;
+    }
+    
+    .product-analysis-header {
+        padding: 15px 20px;
+    }
+    
+    .product-analysis-body {
+        padding: 20px;
+    }
+    
+    .insights-panel {
+        padding: 15px;
+    }
+    
+    .chart-container {
+        padding: 15px;
+        margin: 15px 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .status-badge-enhanced {
+        padding: 6px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .branch-info-card {
+        padding: 15px;
+    }
+    
+    .product-analysis-title {
+        font-size: 1.1rem;
+    }
+    
+    .efficiency-progress {
+        height: 16px;
+    }
+    
+    .efficiency-progress .progress-bar {
+        line-height: 16px;
+        font-size: 0.7rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .chart-container,
+    .cross-branch-table,
+    .insights-panel {
+        box-shadow: none;
+        border: 1px solid #dee2e6;
+    }
+    
+    .status-badge-enhanced {
+        background: #f8f9fa !important;
+        color: #212529 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+    
+    .branch-info-card,
+    .product-analysis-section {
+        break-inside: avoid;
+    }
+}
+
+/* Dark Mode Support (Future Enhancement) */
+@media (prefers-color-scheme: dark) {
+    .branch-info-card {
+        background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        color: #e2e8f0;
+    }
+    
+    .insights-panel {
+        background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+        color: #e2e8f0;
+        border-color: #4a5568;
+    }
+    
+    .chart-container {
+        background: #2d3748;
+        border-color: #4a5568;
+    }
+}

@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+
+{% block title %}Sales by Time - Multi-Branch Analytics{% endblock %}
+{% block page_title %}⏰ Sales by Time - Analisis Temporal{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+<li class="breadcrumb-item active">Sales by Time</li>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card">
+      <div class="metric-icon"><i class="fas fa-calendar-week"></i></div>
+      <div class="metric-value">{{ summary_stats.total_branches if summary_stats else 0 }}</div>
+      <div class="metric-label">Total Branches</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background: linear-gradient(135deg,#FF8C00 0%,#FFA500 100%);">
+      <div class="metric-icon"><i class="fas fa-chart-line"></i></div>
+      <div class="metric-value">{{ summary_stats.total_records if summary_stats else 0 | number }}</div>
+      <div class="metric-label">Total Records</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background: linear-gradient(135deg,#32CD32 0%,#228B22 100%);">
+      <div class="metric-icon"><i class="fas fa-calendar-alt"></i></div>
+      <div class="metric-value">
+        {% if time_data and time_data.daily_pattern and time_data.daily_pattern|length > 0 %}
+          {{ time_data.daily_pattern|length }}
+        {% else %}0{% endif %}
+      </div>
+      <div class="metric-label">Daily Records</div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6 mb-3">
+    <div class="metric-card" style="background: linear-gradient(135deg,#9370DB 0%,#8A2BE2 100%);">
+      <div class="metric-icon"><i class="fas fa-clock"></i></div>
+      <div class="metric-value">
+        {% if time_data and time_data.hourly and time_data.hourly|length > 0 %}
+          {{ time_data.hourly|length }}
+        {% else %}0{% endif %}
+      </div>
+      <div class="metric-label">Hourly Records</div>
+    </div>
+  </div>
+</div>
+
+<!-- Data Period Info -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="alert alert-info">
+      <h6><i class="fas fa-calendar me-2"></i>Period Analyzed</h6>
+      <p class="mb-0">
+        <strong>Date Range:</strong> {{ summary_stats.date_range if summary_stats else "No data available" }}<br>
+        <strong>Analysis Status:</strong>
+        {% if time_data and ((time_data.daily_pattern and time_data.daily_pattern|length>0) or (time_data.hourly and time_data.hourly|length>0)) %}
+          ✅ Time data loaded successfully
+        {% else %}
+          ⚠️ Time data processing in progress
+        {% endif %}
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Main Chart - Branch Trends (All Branches) -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h5 class="chart-title">📅 Branch Sales Trends Over Time (All Branches)</h5>
+      </div>
+      <div class="chart-body">
+        <div id="branch-trends-chart"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="row">
+  <div class="col-12">
+    <div class="chart-card">
+      <div class="chart-header">
+        <h5 class="chart-title">🚀 Time Analysis Actions</h5>
+      </div>
+      <div class="chart-body">
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <a href="{{ url_for('index') }}" class="btn btn-primary w-100">
+              <i class="fas fa-tachometer-alt me-2"></i>Back to Dashboard
+            </a>
+          </div>
+          <div class="col-md-3 mb-3">
+            <a href="{{ url_for('branch_comparison') }}" class="btn btn-outline-primary w-100">
+              <i class="fas fa-building me-2"></i>Branch Analysis
+            </a>
+          </div>
+          <div class="col-md-3 mb-3">
+            <button class="btn btn-outline-success w-100" onclick="window.location.reload()">
+              <i class="fas fa-sync-alt me-2"></i>Refresh Data
+            </button>
+          </div>
+          <div class="col-md-3 mb-3">
+            <a href="{{ url_for('chat') }}" class="btn btn-outline-info w-100">
+              <i class="fas fa-robot me-2"></i>Ask AI About Time Patterns
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .metric-card{
+    background: linear-gradient(135deg,var(--primary-color,#005A5B) 0%,var(--secondary-color,#008B8B) 100%);
+    border-radius:12px; padding:25px; color:#fff;
+    box-shadow:0 4px 20px rgba(0,0,0,0.1); transition:.3s; border:none; position:relative; overflow:hidden;
+  }
+  .metric-card:hover{ transform:translateY(-5px); box-shadow:0 8px 30px rgba(0,0,0,0.15); }
+  .metric-card .metric-value{ font-size:2.2rem; font-weight:700; margin-bottom:5px; position:relative; z-index:2; }
+  .metric-card .metric-label{ font-size:.95rem; opacity:.9; font-weight:500; position:relative; z-index:2; }
+  .metric-card .metric-icon{ position:absolute; top:20px; right:20px; font-size:2.5rem; opacity:.3; z-index:1; }
+
+  .chart-card{ background:#fff; border-radius:12px; box-shadow:0 2px 15px rgba(0,0,0,0.08); margin-bottom:30px; overflow:hidden; border:1px solid #e9ecef; transition:box-shadow .3s; }
+  .chart-card:hover{ box-shadow:0 4px 25px rgba(0,0,0,0.12); }
+  .chart-header{ background:linear-gradient(90deg,#f8f9fa 0%,#e9ecef 100%); padding:20px 25px; border-bottom:2px solid var(--primary-color,#005A5B); }
+  .chart-title{ margin:0; color:var(--primary-color,#005A5B); font-weight:600; font-size:1.1rem; }
+  .chart-body{ padding:25px; }
+
+  .alert{ border-radius:8px; border:none; padding:15px 20px; margin-bottom:20px; }
+  .alert h6{ margin-bottom:10px; font-weight:600; }
+
+  .status-excellent{ background:#32CD32; }
+  .status-good{ background:#20B2AA; }
+  .status-fair{ background:#FF8C00; }
+  .status-poor{ background:#DC143C; }
+
+  .badge{ padding:6px 12px; border-radius:20px; font-weight:500; font-size:.8rem; }
+  .fa-3x{ font-size:3rem !important; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('✅ Sales by Time page loaded');
+  console.log('📊 Time data available:', {{ (time_data and time_data.daily_pattern and time_data.daily_pattern|length > 0) | tojson }});
+  initializeTimeCharts();
+});
+
+function initializeTimeCharts() {
+  // NOTE: charts.branch_trends DIHARAPKAN sudah berisi SEMUA cabang dari backend.
+  {% if charts and charts.branch_trends %}
+  try {
+    const branchTrendsData = {{ charts.branch_trends | safe }};
+    // Pastikan layout/title menjelaskan semua cabang
+    if (branchTrendsData.layout && !branchTrendsData.layout.title) {
+      branchTrendsData.layout.title = 'Branch Sales Trends Over Time (All Branches)';
+    }
+    Plotly.newPlot('branch-trends-chart', branchTrendsData.data, branchTrendsData.layout, {
+      responsive: true,
+      displayModeBar: false
+    });
+    console.log('✅ Branch trends chart (all branches) loaded');
+  } catch (error) {
+    console.error('❌ Error loading branch trends chart:', error);
+    document.getElementById('branch-trends-chart').innerHTML = `
+      <div class="text-center py-4">
+        <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">Chart Loading</h5>
+        <p class="text-muted">Branch trends chart is being prepared...</p>
+      </div>
+    `;
+  }
+  {% else %}
+  document.getElementById('branch-trends-chart').innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-hourglass-half fa-3x text-muted mb-3"></i>
+      <h5 class="text-muted">Data Processing</h5>
+      <p class="text-muted">Time analysis data is being processed. Please refresh in a moment.</p>
+      <button class="btn btn-outline-primary mt-2" onclick="window.location.reload()">
+        <i class="fas fa-sync-alt me-2"></i>Refresh Page
+      </button>
+    </div>
+  `;
+  {% endif %}
+
+  setTimeout(()=>console.log('🎉 Time analysis page fully loaded!'), 800);
+}
+</script>
+{% endblock %}

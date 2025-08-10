@@ -1,21 +1,19 @@
 from flask import Flask, render_template, render_template_string, request, jsonify, redirect, url_for, flash
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import plotly.utils
 import json
 import os
 import sys
 from werkzeug.utils import secure_filename
-from datetime import datetime, timedelta
 import warnings
 import io
 import traceback
+
 warnings.filterwarnings('ignore')
 
-# Import analyzer modules dengan error handling yang lebih baik
+# ===== Imports eksternal (best-effort) =====
 try:
     from multi_branch_analyzer import MultiBranchSalesAnalyzer
     print("✅ MultiBranchSalesAnalyzer imported successfully")
@@ -30,1684 +28,385 @@ except ImportError as e:
     print(f"❌ Error importing GroqChatbot: {e}")
     GroqChatbot = None
 
-# Initialize Flask dengan absolute template path
-app = Flask(__name__, 
-            template_folder=os.path.abspath('templates'),
-            static_folder=os.path.abspath('static'))
-
+# ===== Flask App =====
+app = Flask(
+    __name__,
+    template_folder=os.path.abspath('templates'),
+    static_folder=os.path.abspath('static')
+)
 app.secret_key = os.getenv('SECRET_KEY', 'debug-secret-key-change-in-production')
 app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
 app.config['DEBUG'] = True
-
-# Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# Global variables to store data
+# ===== Global State =====
 analyzer = None
 current_data = None
 chatbot = None
 
-# Allowed file extensions
+# ===== Utils =====
 ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
+def allowed_file(filename): return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+def format_currency(v):
+    try: return f"Rp {float(v):,.0f}"
+    except: return "Rp 0"
 
-def format_currency(value):
-    """Format currency in Indonesian Rupiah."""
-    if pd.isna(value) or value == 0:
-        return "Rp 0"
+def format_percentage(v):
+    try: return f"{float(v):.1f}%"
+    except: return "0%"
+
+def format_number(v):
+    try: return f"{float(v):,.0f}"
+    except: return "0"
+
+def safe_divide(a, b):
     try:
-        return f"Rp {float(value):,.0f}"
-    except (ValueError, TypeError):
-        return "Rp 0"
-
-def format_percentage(value):
-    """Format percentage."""
-    if pd.isna(value):
-        return "0%"
-    try:
-        return f"{float(value):.1f}%"
-    except (ValueError, TypeError):
-        return "0%"
-
-def format_number(value):
-    """Format number with thousand separators."""
-    if pd.isna(value):
-        return "0"
-    try:
-        return f"{float(value):,.0f}"
-    except (ValueError, TypeError):
-        return "0"
-
-def safe_divide(numerator, denominator):
-    """Safe division with zero handling."""
-    try:
-        return float(numerator) / float(denominator) if denominator != 0 else 0
-    except (ValueError, TypeError, ZeroDivisionError):
+        b = float(b)
+        return float(a) / b if b != 0 else 0
+    except:
         return 0
 
-def safe_df_check(data):
-    """Safely check if dataframe is empty or None."""
-    try:
-        return data is not None and not data.empty
-    except Exception:
-        return False
+def safe_df_check(df):
+    try: return df is not None and hasattr(df, "empty") and not df.empty
+    except: return False
 
+# ===== Jinja Filters =====
+@app.template_filter('currency')
+def currency_filter(v): return format_currency(v)
 
+@app.template_filter('percentage')
+def percentage_filter(v): return format_percentage(v)
+
+@app.template_filter('number')
+def number_filter(v): return format_number(v)
+
+@app.template_filter('round')
+def round_filter(v, precision=2):
+    try: return round(float(v), precision)
+    except: return v
+
+# ===== Routes =====
 @app.route('/')
 def index():
-    """Main dashboard page."""
     global analyzer, current_data
-    
     print("🔍 Dashboard route accessed")
-    
+
     if analyzer is None or not safe_df_check(current_data):
-        print("❌ No data available, redirecting to upload")
+        flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     try:
-        print("📊 Getting summary statistics...")
         summary_stats = analyzer.get_branch_summary_stats()
-        
-        print("📈 Getting branch comparison...")
-        branch_comparison = analyzer.get_branch_revenue_comparison()
-        
-        # Get key metrics dengan safe calculations
+        branch_comp = analyzer.get_branch_revenue_comparison()
+
         total_revenue = summary_stats.get('total_revenue', 0)
         total_margin = summary_stats.get('total_margin', 0)
         gross_margin_pct = safe_divide(total_margin, total_revenue) * 100
-        
-        print("📊 Creating dashboard charts...")
+
         charts_data = create_dashboard_charts()
-        
-        print("✅ Rendering dashboard template...")
-        return render_template('dashboard.html',
-                             summary_stats=summary_stats,
-                             branch_comparison=branch_comparison,
-                             charts_data=charts_data,
-                             total_revenue=format_currency(total_revenue),
-                             total_margin=format_currency(total_margin),
-                             gross_margin_pct=format_percentage(gross_margin_pct),
-                             branches=analyzer.branches)
-    
+
+        return render_template(
+            'dashboard.html',
+            summary_stats=summary_stats,
+            branch_comparison=branch_comp,
+            charts_data=charts_data,
+            total_revenue=format_currency(total_revenue),
+            total_margin=format_currency(total_margin),
+            gross_margin_pct=format_percentage(gross_margin_pct),
+            branches=analyzer.branches
+        )
     except Exception as e:
-        print(f"❌ Error in dashboard: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        flash(f'Error loading dashboard: {str(e)}')
+        print(f"❌ Error in dashboard: {e}")
+        print(traceback.format_exc())
+        flash(f'Error loading dashboard: {e}')
         return redirect(url_for('upload_files'))
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_files():
-    """Handle file uploads."""
     print("📁 Upload route accessed")
-    
     if request.method == 'POST':
-        print("📤 Processing file upload...")
-        
-        # Check if files were uploaded
         if 'files[]' not in request.files:
             flash('No files selected')
             return redirect(request.url)
-        
+
         files = request.files.getlist('files[]')
-        
         if not files or files[0].filename == '':
             flash('No files selected')
             return redirect(request.url)
-        
-        uploaded_files = []
-        
-        # Process each uploaded file
-        for file in files:
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(file_path)
-                uploaded_files.append(file_path)
-                print(f"📄 Saved file: {filename}")
-        
-        if uploaded_files:
-            try:
-                print(f"🔄 Processing {len(uploaded_files)} files...")
-                
-                # Load data using analyzer
-                global analyzer, current_data, chatbot
-                
-                if MultiBranchSalesAnalyzer is None:
-                    flash('Analyzer module not available. Check imports.')
-                    return redirect(url_for('upload_files'))
-                
-                analyzer = MultiBranchSalesAnalyzer()
-                
-                # Create file-like objects for the analyzer
-                processed_files = []
-                for file_path in uploaded_files:
-                    with open(file_path, 'rb') as f:
-                        file_buffer = io.BytesIO(f.read())
-                        file_buffer.name = os.path.basename(file_path)
-                        processed_files.append(file_buffer)
-                
-                current_data = analyzer.load_multiple_files(processed_files)
-                
-                if not safe_df_check(current_data):
-                    flash('No valid data found in uploaded files. Please check file format.')
-                    return redirect(url_for('upload_files'))
-                
-                print(f"✅ Loaded {len(current_data)} records from {len(uploaded_files)} files")
-                
-                # Initialize chatbot
-                try:
-                    if GroqChatbot is not None:
-                        chatbot = GroqChatbot()
-                        print("✅ Chatbot initialized")
-                except Exception as e:
-                    print(f"❌ Chatbot initialization failed: {e}")
-                    chatbot = None
-                
-                # Clean up uploaded files
-                for file_path in uploaded_files:
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                
-                flash(f'Successfully loaded {len(uploaded_files)} files with {len(current_data)} records!')
-                return redirect(url_for('index'))
-                
-            except Exception as e:
-                print(f"❌ Error processing files: {str(e)}")
-                print(f"Traceback: {traceback.format_exc()}")
-                flash(f'Error processing files: {str(e)}')
-                # Clean up files on error
-                for file_path in uploaded_files:
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-        else:
+
+        uploaded = []
+        for f in files:
+            if f and allowed_file(f.filename):
+                name = secure_filename(f.filename)
+                path = os.path.join(app.config['UPLOAD_FOLDER'], name)
+                f.save(path)
+                uploaded.append(path)
+                print(f"📄 Saved: {name}")
+
+        if not uploaded:
             flash('No valid Excel files found')
-    
-    print("📄 Rendering upload template...")
+            return redirect(request.url)
+
+        try:
+            global analyzer, current_data, chatbot
+            if MultiBranchSalesAnalyzer is None:
+                flash('Analyzer module not available. Check imports.')
+                return redirect(url_for('upload_files'))
+
+            analyzer = MultiBranchSalesAnalyzer()
+
+            buffers = []
+            for p in uploaded:
+                with open(p, 'rb') as fh:
+                    b = io.BytesIO(fh.read())
+                    b.name = os.path.basename(p)
+                    buffers.append(b)
+
+            current_data = analyzer.load_multiple_files(buffers)
+            if not safe_df_check(current_data):
+                flash('No valid data found in uploaded files.')
+                return redirect(url_for('upload_files'))
+
+            # init chatbot (optional)
+            try:
+                chatbot = GroqChatbot() if GroqChatbot else None
+                if chatbot: print("✅ Chatbot initialized")
+            except Exception as e:
+                print(f"⚠️ Chatbot init failed: {e}")
+                chatbot = None
+
+            # cleanup
+            for p in uploaded:
+                if os.path.exists(p): os.remove(p)
+
+            flash(f'Successfully loaded {len(uploaded)} files with {len(current_data)} records!')
+            return redirect(url_for('index'))
+
+        except Exception as e:
+            print(f"❌ Upload processing error: {e}")
+            print(traceback.format_exc())
+            for p in uploaded:
+                if os.path.exists(p): os.remove(p)
+            flash(f'Error processing files: {e}')
+
     return render_template('upload.html')
 
 @app.route('/branch-comparison')
 def branch_comparison():
-    """Branch comparison analysis page."""
     global analyzer, current_data
-    
-    print("🏢 Branch comparison route accessed")
-    
     if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     try:
-        print("📊 Getting branch comparison data...")
-        branch_comparison_data = analyzer.get_branch_revenue_comparison()
-        
-        print("📈 Creating branch comparison charts...")
-        charts = create_branch_comparison_charts(branch_comparison_data)
-        
-        print("✅ Rendering branch comparison template...")
-        return render_template('branch_comparison.html',
-                             branch_data=branch_comparison_data,
-                             charts=charts)
+        data = analyzer.get_branch_revenue_comparison()
+        charts = create_branch_comparison_charts(data)
+        return render_template('branch_comparison.html', branch_data=data, charts=charts)
     except Exception as e:
-        print(f"❌ Error in branch comparison: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        flash(f'Error loading branch comparison: {str(e)}')
+        print(f"❌ Branch comparison error: {e}")
+        print(traceback.format_exc())
+        flash(f'Error loading branch comparison: {e}')
         return redirect(url_for('index'))
 
 @app.route('/product-analysis')
 def product_analysis():
-    """Product analysis page."""
+    """Branch-first. Detail produk di frontend hanya Revenue & Qty."""
     global analyzer, current_data
-    
-    print("📦 Product analysis route accessed")
-    
     if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     try:
-        print("📊 Getting product comparison data...")
-        product_comparison = analyzer.get_product_comparison_by_branch(20)
-        
-        if not safe_df_check(product_comparison):
+        df = analyzer.get_product_comparison_by_branch(top_n_products=None)
+        if not safe_df_check(df):
             flash('No product data available for analysis.')
             return redirect(url_for('index'))
-        
-        print("📈 Getting top products...")
-        top_products = product_comparison.groupby('Menu').agg({
-            'Qty': 'sum',
-            'Total': 'sum',
-            'Margin': 'sum'
-        }).reset_index()
-        
-        # Safe calculation untuk margin percentage
+
+        top_products = (
+            df.groupby('Menu')
+              .agg({'Qty': 'sum', 'Total': 'sum', 'Margin': 'sum'})
+              .reset_index()
+        )
         top_products['Margin_Percentage'] = top_products.apply(
-            lambda row: safe_divide(row['Margin'], row['Total']) * 100, axis=1
+            lambda r: safe_divide(r['Margin'], r['Total']) * 100, axis=1
         )
         top_products = top_products.sort_values('Total', ascending=False)
-        
-        print("📊 Creating product analysis charts...")
-        charts = create_product_analysis_charts(product_comparison, top_products)
-        
-        print("✅ Rendering product analysis template...")
-        return render_template('product_analysis.html',
-                             product_data=product_comparison,
-                             top_products=top_products,
-                             charts=charts)
+
+        return render_template('product_analysis.html', product_data=df, top_products=top_products)
     except Exception as e:
-        print(f"❌ Error in product analysis: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        flash(f'Error loading product analysis: {str(e)}')
+        print(f"❌ Product analysis error: {e}")
+        print(traceback.format_exc())
+        flash(f'Error loading product analysis: {e}')
         return redirect(url_for('index'))
-
-# @app.route('/sales-by-time')
-# def sales_by_time():
-#     """Sales by time analysis page - COMPLETELY SAFE VERSION."""
-#     global analyzer, current_data
-    
-#     print("⏰ Sales by time route accessed")
-    
-#     if analyzer is None or not safe_df_check(current_data):
-#         flash('No data available. Please upload files first.')
-#         return redirect(url_for('upload_files'))
-    
-#     try:
-#         print("📊 Getting time analysis data...")
-#         time_analysis = analyzer.get_sales_by_time_all_branches()
-        
-#         print("📈 Creating MINIMAL time charts...")
-#         # HANYA buat chart minimal untuk menghindari error
-#         charts = create_minimal_time_charts(time_analysis)
-        
-#         print("✅ Rendering sales by time template...")
-#         return render_template('sales_by_time.html',
-#                              time_data=time_analysis,
-#                              charts=charts)
-#     except Exception as e:
-#         print(f"❌ Error in sales by time: {str(e)}")
-#         print(f"Traceback: {traceback.format_exc()}")
-#         flash(f'Error loading sales by time: {str(e)}')
-#         return redirect(url_for('index'))
-
-# REPLACE HANYA BAGIAN INI di app.py Anda
-
-# @app.route('/sales-by-time')
-# def sales_by_time():
-#     """Sales by time analysis page - MINIMAL VERSION."""
-#     global analyzer, current_data
-    
-#     print("⏰ Sales by time route accessed - MINIMAL VERSION")
-    
-#     if analyzer is None or not safe_df_check(current_data):
-#         flash('No data available. Please upload files first.')
-#         return redirect(url_for('upload_files'))
-    
-#     try:
-#         print("📊 Getting basic time data...")
-        
-#         # Create MINIMAL time_data without complex processing
-#         time_analysis = {
-#             'daily_pattern': pd.DataFrame(),
-#             'daily_trend': pd.DataFrame(), 
-#             'monthly': pd.DataFrame()
-#         }
-        
-#         # Try to get simple time data if possible
-#         try:
-#             actual_time_data = analyzer.get_sales_by_time_all_branches()
-#             if actual_time_data:
-#                 time_analysis = actual_time_data
-#         except Exception as e:
-#             print(f"⚠️ Could not get full time data: {e}")
-#             # Use empty data - that's fine!
-        
-#         print("📈 Creating EMPTY charts (safe)...")
-#         # Create completely empty/minimal charts
-#         charts = {
-#             'daily_pattern': json.dumps({
-#                 'data': [],
-#                 'layout': {'title': 'Daily Pattern (Data akan ditampilkan setelah processing)'}
-#             }),
-#             'branch_trends': json.dumps({
-#                 'data': [],
-#                 'layout': {'title': 'Branch Trends (Data akan ditampilkan setelah processing)'}
-#             }),
-#             'monthly_comparison': json.dumps({
-#                 'data': [],
-#                 'layout': {'title': 'Monthly Comparison (Data akan ditampilkan setelah processing)'}
-#             })
-#         }
-        
-#         print("✅ Rendering sales by time template with minimal data...")
-#         return render_template('sales_by_time.html',
-#                              time_data=time_analysis,
-#                              charts=charts)
-                             
-#     except Exception as e:
-#         print(f"❌ STILL Error in sales by time: {str(e)}")
-#         print(f"Traceback: {traceback.format_exc()}")
-        
-#         # FORCE SUCCESS - return template with empty data
-#         print("🔄 FORCING template render with empty data...")
-#         empty_time_data = {
-#             'daily_pattern': pd.DataFrame(),
-#             'daily_trend': pd.DataFrame(),
-#             'monthly': pd.DataFrame()
-#         }
-#         empty_charts = {
-#             'daily_pattern': '{}',
-#             'branch_trends': '{}', 
-#             'monthly_comparison': '{}'
-#         }
-        
-#         try:
-#             return render_template('sales_by_time.html',
-#                                  time_data=empty_time_data,
-#                                  charts=empty_charts)
-#         except Exception as template_error:
-#             print(f"❌ Template error: {template_error}")
-#             # Last resort - show simple message
-#             return f"""
-#             <h1>Sales by Time</h1>
-#             <p>Page is being loaded. Time analysis will be available soon.</p>
-#             <p><a href="{url_for('index')}">Back to Dashboard</a></p>
-#             <p>Debug: {str(e)}</p>
-#             """
-
-# REPLACE the existing sales_by_time route in your app.py with this fixed version:
-
-# TAMBAHKAN ROUTE INI KE app.py untuk DEBUG COGS
-
-# @app.route('/debug-cogs')
-# def debug_cogs():
-#     """Debug route untuk check COGS data."""
-#     global analyzer, current_data
-    
-#     print("🔍 Debug COGS route accessed")
-    
-#     if analyzer is None or not safe_df_check(current_data):
-#         return "❌ No data available. Please upload files first."
-    
-#     try:
-#         print("📊 Getting COGS data for debug...")
-#         cogs_data = analyzer.get_cogs_per_product_per_branch(50)  # Get more products
-        
-#         print(f"✅ COGS data retrieved: {len(cogs_data)} records")
-        
-#         if not safe_df_check(cogs_data):
-#             return "❌ No COGS data available for analysis."
-        
-#         # Debug info
-#         debug_info = {
-#             'total_records': len(cogs_data),
-#             'unique_branches': cogs_data['Branch'].nunique(),
-#             'unique_menus': cogs_data['Menu'].nunique(),
-#             'branches': cogs_data['Branch'].unique().tolist(),
-#             'sample_data': cogs_data.head(5).to_dict('records'),
-#             'columns': cogs_data.columns.tolist()
-#         }
-        
-#         print("🔍 Debug info:", debug_info)
-        
-#         # Render debug template
-#         return render_template_string ('''
-#         <!DOCTYPE html>
-#         <html>
-#         <head><title>Debug COGS</title></head>
-#         <body>
-#             <h1>🔍 Debug COGS Data</h1>
-            
-#             <h3>Data Summary:</h3>
-#             <ul>
-#                 <li>Total records: {{ debug_info.total_records }}</li>
-#                 <li>Unique branches: {{ debug_info.unique_branches }}</li>
-#                 <li>Unique menus: {{ debug_info.unique_menus }}</li>
-#             </ul>
-            
-#             <h3>Branches:</h3>
-#             <ul>
-#                 {% for branch in debug_info.branches %}
-#                 <li>{{ branch }}</li>
-#                 {% endfor %}
-#             </ul>
-            
-#             <h3>Sample Data:</h3>
-#             <table border="1" style="border-collapse: collapse;">
-#                 <tr>
-#                     <th>Branch</th>
-#                     <th>Menu</th>
-#                     <th>COGS %</th>
-#                     <th>Total</th>
-#                     <th>Qty</th>
-#                 </tr>
-#                 {% for item in debug_info.sample_data %}
-#                 <tr>
-#                     <td>{{ item.Branch }}</td>
-#                     <td>{{ item.Menu }}</td>
-#                     <td>{{ item['COGS Total (%)'] | round(1) }}%</td>
-#                     <td>Rp {{ item.Total | number }}</td>
-#                     <td>{{ item.Qty }}</td>
-#                 </tr>
-#                 {% endfor %}
-#             </table>
-            
-#             <h3>Test Branch Selection:</h3>
-#             <select id="branchSelect" onchange="testBranchSelection()">
-#                 <option value="">-- Pilih Cabang --</option>
-#                 {% for branch in debug_info.branches %}
-#                 <option value="{{ branch }}">{{ branch }}</option>
-#                 {% endfor %}
-#             </select>
-            
-#             <div id="branchResult" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
-            
-#             <script>
-#             const cogsData = {{ cogs_data.to_dict('records') | safe }};
-#             console.log('COGS data loaded:', cogsData.length, 'records');
-            
-#             function testBranchSelection() {
-#                 const selectedBranch = document.getElementById('branchSelect').value;
-#                 const resultDiv = document.getElementById('branchResult');
-                
-#                 if (selectedBranch) {
-#                     const branchData = cogsData.filter(item => item.Branch === selectedBranch);
-#                     const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
-                    
-#                     resultDiv.innerHTML = `
-#                         <h4>Results for: ${selectedBranch}</h4>
-#                         <p>Records found: ${branchData.length}</p>
-#                         <p>Unique products: ${branchProducts.length}</p>
-#                         <h5>Products:</h5>
-#                         <ul>
-#                             ${branchProducts.slice(0, 20).map(p => `<li>${p}</li>`).join('')}
-#                             ${branchProducts.length > 20 ? `<li>... and ${branchProducts.length - 20} more</li>` : ''}
-#                         </ul>
-#                     `;
-#                 } else {
-#                     resultDiv.innerHTML = 'Select a branch to see results';
-#                 }
-#             }
-#             </script>
-            
-#             <p><a href="{{ url_for('cogs_analysis') }}">← Back to COGS Analysis</a></p>
-#         </body>
-#         </html>
-#         ''', debug_info=debug_info, cogs_data=cogs_data)
-        
-#     except Exception as e:
-#         print(f"❌ Error in debug COGS: {str(e)}")
-#         return f"❌ Error: {str(e)}"
-# GANTI DEBUG ROUTE di app.py dengan yang ini:
-
-@app.route('/debug-cogs')
-def debug_cogs():
-    """Debug route untuk check COGS data - FIXED untuk semua data."""
-    global analyzer, current_data
-    
-    print("🔍 Debug COGS route accessed")
-    
-    if analyzer is None or not safe_df_check(current_data):
-        return "❌ No data available. Please upload files first."
-    
-    try:
-        print("📊 Getting COGS data for debug (ALL PRODUCTS)...")
-        # FIXED: Ambil SEMUA data
-        cogs_data = analyzer.get_cogs_per_product_per_branch(top_n_products=None)  # None = semua
-        
-        print(f"✅ COGS data retrieved: {len(cogs_data)} records")
-        
-        if not safe_df_check(cogs_data):
-            return "❌ No COGS data available for analysis."
-        
-        # Debug info yang lebih detail
-        debug_info = {
-            'total_records': len(cogs_data),
-            'unique_branches': cogs_data['Branch'].nunique(),
-            'unique_menus': cogs_data['Menu'].nunique(),
-            'branches': cogs_data['Branch'].unique().tolist(),
-            'sample_data': cogs_data.head(10).to_dict('records'),  # Lebih banyak sample
-            'columns': cogs_data.columns.tolist()
-        }
-        
-        # Breakdown per cabang
-        branch_breakdown = {}
-        for branch in debug_info['branches']:
-            branch_data = cogs_data[cogs_data['Branch'] == branch]
-            branch_breakdown[branch] = {
-                'total_records': len(branch_data),
-                'unique_menus': branch_data['Menu'].nunique(),
-                'sample_menus': branch_data['Menu'].unique()[:10].tolist()
-            }
-        
-        debug_info['branch_breakdown'] = branch_breakdown
-        
-        print("🔍 Debug info:", debug_info)
-        
-        # Render debug template dengan lebih banyak detail
-        return render_template_string('''
-        <!DOCTYPE html>
-        <html>
-        <head><title>Debug COGS - All Data</title></head>
-        <body>
-            <h1>🔍 Debug COGS Data (ALL PRODUCTS)</h1>
-            
-            <h3>Data Summary:</h3>
-            <ul>
-                <li><strong>Total records:</strong> {{ debug_info.total_records }}</li>
-                <li><strong>Unique branches:</strong> {{ debug_info.unique_branches }}</li>
-                <li><strong>Unique menus:</strong> {{ debug_info.unique_menus }}</li>
-            </ul>
-            
-            <h3>Branch Breakdown:</h3>
-            {% for branch, data in debug_info.branch_breakdown.items() %}
-            <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
-                <h4>{{ branch }}</h4>
-                <ul>
-                    <li>Records: {{ data.total_records }}</li>
-                    <li>Unique menus: {{ data.unique_menus }}</li>
-                    <li>Sample menus: {{ data.sample_menus | join(', ') }}{% if data.unique_menus > 10 %} ... ({{ data.unique_menus - 10 }} more){% endif %}</li>
-                </ul>
-            </div>
-            {% endfor %}
-            
-            <h3>Sample Data (First 10 records):</h3>
-            <table border="1" style="border-collapse: collapse; width: 100%;">
-                <tr>
-                    <th>Branch</th>
-                    <th>Menu</th>
-                    <th>COGS %</th>
-                    <th>Total</th>
-                    <th>Qty</th>
-                    <th>Margin</th>
-                </tr>
-                {% for item in debug_info.sample_data %}
-                <tr>
-                    <td>{{ item.Branch }}</td>
-                    <td>{{ item.Menu }}</td>
-                    <td>{{ item['COGS Total (%)'] | round(1) }}%</td>
-                    <td>Rp {{ "{:,}".format(item.Total) }}</td>
-                    <td>{{ item.Qty }}</td>
-                    <td>Rp {{ "{:,}".format(item.Margin) }}</td>
-                </tr>
-                {% endfor %}
-            </table>
-            
-            <h3>Interactive Test:</h3>
-            <div style="margin: 20px 0;">
-                <label>Branch Select:</label>
-                <select id="branchSelect" onchange="testBranchSelection()" style="margin: 10px;">
-                    <option value="">-- Pilih Cabang --</option>
-                    {% for branch in debug_info.branches %}
-                    <option value="{{ branch }}">{{ branch }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            
-            <div id="branchResult" style="margin-top: 20px; padding: 15px; border: 2px solid #007bff; background: #f8f9fa;"></div>
-            
-            <script>
-            const cogsData = {{ cogs_data.to_dict('records') | safe }};
-            console.log('🔍 ALL COGS data loaded:', cogsData.length, 'records');
-            console.log('🏢 Unique branches:', [...new Set(cogsData.map(item => item.Branch))]);
-            console.log('🍜 Unique menus:', [...new Set(cogsData.map(item => item.Menu))].length);
-            
-            function testBranchSelection() {
-                const selectedBranch = document.getElementById('branchSelect').value;
-                const resultDiv = document.getElementById('branchResult');
-                
-                if (selectedBranch) {
-                    const branchData = cogsData.filter(item => item.Branch === selectedBranch);
-                    const branchProducts = [...new Set(branchData.map(item => item.Menu))].sort();
-                    
-                    console.log('🔍 Branch selected:', selectedBranch);
-                    console.log('📊 Records found:', branchData.length);
-                    console.log('🍜 Unique products:', branchProducts.length);
-                    
-                    resultDiv.innerHTML = `
-                        <h4>✅ Results for: <span style="color: #007bff;">${selectedBranch}</span></h4>
-                        <p><strong>Records found:</strong> ${branchData.length}</p>
-                        <p><strong>Unique products:</strong> ${branchProducts.length}</p>
-                        <h5>All Products (${branchProducts.length}):</h5>
-                        <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
-                            <ol>
-                                ${branchProducts.map(p => `<li>${p}</li>`).join('')}
-                            </ol>
-                        </div>
-                        <p style="margin-top: 15px;"><em>Ini adalah semua produk yang tersedia untuk cabang ${selectedBranch}</em></p>
-                    `;
-                } else {
-                    resultDiv.innerHTML = '<p style="color: #6c757d;">Select a branch to see results</p>';
-                }
-            }
-            </script>
-            
-            <div style="margin-top: 30px; padding: 15px; background: #d4edda; border: 1px solid #c3e6cb;">
-                <h4>✅ Success!</h4>
-                <p>Debug shows <strong>{{ debug_info.total_records }}</strong> total records with <strong>{{ debug_info.unique_menus }}</strong> unique menus across <strong>{{ debug_info.unique_branches }}</strong> branches.</p>
-                <p>If the dropdown in COGS Analysis is still empty, there might be a JavaScript issue. Check browser console for errors.</p>
-            </div>
-            
-            <p style="margin-top: 20px;"><a href="{{ url_for('cogs_analysis') }}" style="color: #007bff;">← Back to COGS Analysis</a></p>
-        </body>
-        </html>
-        ''', debug_info=debug_info, cogs_data=cogs_data)
-        
-    except Exception as e:
-        print(f"❌ Error in debug COGS: {str(e)}")
-        return f"❌ Error: {str(e)}"
 
 @app.route('/sales-by-time')
 def sales_by_time():
-    """Sales by time analysis page - FIXED VERSION."""
+    """Branch Trends: ALL branches, tooltip hanya untuk trace yang di-pointer (hovermode='closest')."""
     global analyzer, current_data
-    
-    print("⏰ Sales by time route accessed - FIXED VERSION")
-    
     if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     try:
-        print("📊 Getting time analysis data...")
-        
-        # Get time analysis data safely
+        raw = analyzer.get_sales_by_time_all_branches()  # dict of DataFrames
         time_analysis = {}
-        try:
-            raw_time_data = analyzer.get_sales_by_time_all_branches()
-            if raw_time_data:
-                # Convert DataFrames to dictionaries for template
-                time_analysis = {}
-                for key, df in raw_time_data.items():
-                    if safe_df_check(df):
-                        # Convert DataFrame to dict for safe JSON serialization
-                        time_analysis[key] = {
-                            'data': df.to_dict('records'),
-                            'columns': df.columns.tolist(),
-                            'length': len(df)
-                        }
-                    else:
-                        time_analysis[key] = {'data': [], 'columns': [], 'length': 0}
-        except Exception as e:
-            print(f"⚠️ Could not get time data: {e}")
-            time_analysis = {
-                'hourly': {'data': [], 'columns': [], 'length': 0},
-                'daily_pattern': {'data': [], 'columns': [], 'length': 0},
-                'daily_trend': {'data': [], 'columns': [], 'length': 0},
-                'weekly': {'data': [], 'columns': [], 'length': 0},
-                'monthly': {'data': [], 'columns': [], 'length': 0}
-            }
-        
-        print("📈 Creating time charts...")
-        # Create charts with safe data
-        charts = create_safe_time_charts(time_analysis)
-        
-        # Prepare summary stats safely
+        if isinstance(raw, dict):
+            for k, df in raw.items():
+                if safe_df_check(df):
+                    time_analysis[k] = {
+                        'data': df.to_dict('records'),
+                        'columns': df.columns.tolist(),
+                        'length': len(df)
+                    }
+                else:
+                    time_analysis[k] = {'data': [], 'columns': [], 'length': 0}
+        else:
+            # fallback empty structure
+            time_analysis = {k: {'data': [], 'columns': [], 'length': 0}
+                             for k in ['hourly','daily_pattern','daily_trend','weekly','monthly']}
+
+        charts = create_time_charts_all_branches(time_analysis)
+
         summary_stats = {
             'total_branches': len(analyzer.branches) if analyzer.branches else 0,
-            'date_range': f"{analyzer.min_date.strftime('%d/%m/%Y')} - {analyzer.max_date.strftime('%d/%m/%Y')}" if analyzer.min_date and analyzer.max_date else "No date range",
+            'date_range': (
+                f"{analyzer.min_date.strftime('%d/%m/%Y')} - {analyzer.max_date.strftime('%d/%m/%Y')}"
+                if getattr(analyzer, 'min_date', None) and getattr(analyzer, 'max_date', None)
+                else "No date range"
+            ),
             'total_records': len(current_data) if safe_df_check(current_data) else 0
         }
-        
-        print("✅ Rendering sales by time template...")
-        return render_template('sales_by_time_fixed.html',
-                             time_data=time_analysis,
-                             charts=charts,
-                             summary_stats=summary_stats)
-                             
+
+        return render_template('sales_by_time.html',
+                               time_data=time_analysis,
+                               charts=charts,
+                               summary_stats=summary_stats)
     except Exception as e:
-        print(f"❌ Error in sales by time: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        
-        # Return safe fallback template
-        print("🔄 Rendering fallback template...")
-        fallback_data = {
-            'hourly': {'data': [], 'columns': [], 'length': 0},
-            'daily_pattern': {'data': [], 'columns': [], 'length': 0},
-            'daily_trend': {'data': [], 'columns': [], 'length': 0},
-            'weekly': {'data': [], 'columns': [], 'length': 0},
-            'monthly': {'data': [], 'columns': [], 'length': 0}
-        }
-        fallback_charts = {
-            'daily_pattern': '{"data": [], "layout": {"title": "Daily Pattern"}}',
-            'branch_trends': '{"data": [], "layout": {"title": "Branch Trends"}}',
-            'monthly_comparison': '{"data": [], "layout": {"title": "Monthly Comparison"}}'
-        }
-        fallback_stats = {
-            'total_branches': 0,
-            'date_range': "No data",
-            'total_records': 0
-        }
-        
-        return render_template('sales_by_time_fixed.html',
-                             time_data=fallback_data,
-                             charts=fallback_charts,
-                             summary_stats=fallback_stats)
-
-def create_safe_time_charts(time_analysis):
-    """Create charts for time analysis with safe data handling."""
-    charts = {}
-    
-    try:
-        print("📊 Creating safe time charts...")
-        
-        # Daily Pattern Chart
-        if 'daily_pattern' in time_analysis and time_analysis['daily_pattern']['length'] > 0:
-            daily_data = time_analysis['daily_pattern']['data']
-            if daily_data:
-                # Group by day of week
-                day_totals = {}
-                for item in daily_data:
-                    day = item.get('Day_of_Week', 'Unknown')
-                    revenue = item.get('Total_Revenue', 0) or 0
-                    if day in day_totals:
-                        day_totals[day] += revenue
-                    else:
-                        day_totals[day] = revenue
-                
-                # Create chart data
-                days = list(day_totals.keys())
-                revenues = list(day_totals.values())
-                
-                if days and revenues:
-                    fig_daily = go.Figure(data=[
-                        go.Bar(
-                            x=days,
-                            y=revenues,
-                            text=[f'Rp {x:,.0f}' for x in revenues],
-                            textposition='outside',
-                            marker_color='rgba(0, 139, 139, 0.8)'
-                        )
-                    ])
-                    
-                    fig_daily.update_layout(
-                        title='📊 Penjualan per Hari dalam Seminggu',
-                        xaxis_title='Hari',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=False
-                    )
-                    charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        # Branch Trends Chart
-        if 'daily_trend' in time_analysis and time_analysis['daily_trend']['length'] > 0:
-            trend_data = time_analysis['daily_trend']['data']
-            if trend_data:
-                # Get top 3 branches by total revenue
-                branch_totals = {}
-                for item in trend_data:
-                    branch = item.get('Branch', 'Unknown')
-                    revenue = item.get('Total', 0) or 0
-                    if branch in branch_totals:
-                        branch_totals[branch] += revenue
-                    else:
-                        branch_totals[branch] = revenue
-                
-                # Get top 3 branches
-                top_branches = sorted(branch_totals.items(), key=lambda x: x[1], reverse=True)[:3]
-                
-                if top_branches:
-                    fig_trends = go.Figure()
-                    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-                    
-                    for i, (branch, _) in enumerate(top_branches):
-                        branch_data = [item for item in trend_data if item.get('Branch') == branch]
-                        if branch_data:
-                            dates = [item.get('Date', '') for item in branch_data]
-                            revenues = [item.get('Total', 0) or 0 for item in branch_data]
-                            
-                            fig_trends.add_trace(go.Scatter(
-                                x=dates,
-                                y=revenues,
-                                mode='lines+markers',
-                                name=branch,
-                                line=dict(width=2, color=colors[i % len(colors)]),
-                                marker=dict(size=4)
-                            ))
-                    
-                    fig_trends.update_layout(
-                        title='📅 Trend Penjualan Harian (Top 3 Cabang)',
-                        xaxis_title='Tanggal',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=True
-                    )
-                    charts['branch_trends'] = json.dumps(fig_trends, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        # Monthly Comparison Chart
-        if 'monthly' in time_analysis and time_analysis['monthly']['length'] > 0:
-            monthly_data = time_analysis['monthly']['data']
-            if monthly_data:
-                # Group by month
-                month_totals = {}
-                for item in monthly_data:
-                    month = item.get('Month', 0) or 0
-                    revenue = item.get('Total', 0) or 0
-                    if month in month_totals:
-                        month_totals[month] += revenue
-                    else:
-                        month_totals[month] = revenue
-                
-                # Create chart data
-                months = sorted(month_totals.keys())
-                revenues = [month_totals[m] for m in months]
-                
-                if months and revenues:
-                    fig_monthly = go.Figure(data=[
-                        go.Bar(
-                            x=[f'Month {int(m)}' for m in months],
-                            y=revenues,
-                            text=[f'Rp {x:,.0f}' for x in revenues],
-                            textposition='outside',
-                            marker_color='rgba(255, 165, 0, 0.8)'
-                        )
-                    ])
-                    
-                    fig_monthly.update_layout(
-                        title='📊 Total Penjualan per Bulan',
-                        xaxis_title='Bulan',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=False
-                    )
-                    charts['monthly_comparison'] = json.dumps(fig_monthly, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        # Create empty charts if no data
-        if not charts:
-            empty_fig = go.Figure()
-            empty_fig.add_annotation(
-                text="Data sedang diproses, silakan refresh halaman",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=16, color="gray")
-            )
-            empty_fig.update_layout(height=300)
-            empty_chart = json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
-            
-            charts = {
-                'daily_pattern': empty_chart,
-                'branch_trends': empty_chart,
-                'monthly_comparison': empty_chart
-            }
-        
-        print("✅ Safe time charts created successfully")
-        
-    except Exception as e:
-        print(f"❌ Error creating safe time charts: {e}")
-        # Return completely empty charts
-        empty_fig = go.Figure()
-        empty_fig.add_annotation(
-            text="Chart tidak dapat dimuat",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
-        )
-        empty_fig.update_layout(height=300)
-        empty_chart = json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        charts = {
-            'daily_pattern': empty_chart,
-            'branch_trends': empty_chart,
-            'monthly_comparison': empty_chart
-        }
-    
-    return charts
-
-
-# @app.route('/cogs-analysis')
-# def cogs_analysis():
-#     """COGS analysis page."""
-#     global analyzer, current_data
-    
-#     print("💰 COGS analysis route accessed")
-    
-#     if analyzer is None or not safe_df_check(current_data):
-#         flash('No data available. Please upload files first.')
-#         return redirect(url_for('upload_files'))
-    
-#     try:
-#         print("📊 Getting COGS analysis data...")
-#         cogs_data = analyzer.get_cogs_per_product_per_branch(15)
-        
-#         if not safe_df_check(cogs_data):
-#             flash('No COGS data available for analysis.')
-#             return redirect(url_for('index'))
-        
-#         print("📈 Calculating branch COGS efficiency...")
-#         branch_cogs = cogs_data.groupby('Branch')['COGS Total (%)'].mean().reset_index()
-#         branch_cogs['COGS_Efficiency'] = 100 - branch_cogs['COGS Total (%)']
-#         branch_cogs = branch_cogs.sort_values('COGS_Efficiency', ascending=False)
-        
-#         print("📊 Creating COGS analysis charts...")
-#         charts = create_cogs_analysis_charts(cogs_data, branch_cogs)
-        
-#         print("✅ Rendering COGS analysis template...")
-#         return render_template('cogs_analysis.html',
-#                              cogs_data=cogs_data,
-#                              branch_cogs=branch_cogs,
-#                              charts=charts)
-#     except Exception as e:
-#         print(f"❌ Error in COGS analysis: {str(e)}")
-#         print(f"Traceback: {traceback.format_exc()}")
-#         flash(f'Error loading COGS analysis: {str(e)}')
-#         return redirect(url_for('index'))
-
-# GANTI ROUTE COGS ANALYSIS di app.py dengan yang ini:
+        print(f"❌ Sales-by-time error: {e}")
+        print(traceback.format_exc())
+        empty = json.dumps({"data": [], "layout": {"title": "No Data"}})
+        fallback_charts = {'daily_pattern': empty, 'branch_trends': empty, 'monthly_comparison': empty}
+        fallback_time = {k: {'data': [], 'columns': [], 'length': 0}
+                         for k in ['hourly','daily_pattern','daily_trend','weekly','monthly']}
+        fallback_stats = {'total_branches': 0, 'date_range': "No data", 'total_records': 0}
+        return render_template('sales_by_time.html',
+                               time_data=fallback_time, charts=fallback_charts, summary_stats=fallback_stats)
 
 @app.route('/cogs-analysis')
 def cogs_analysis():
-    """COGS analysis page - FIXED untuk mengambil SEMUA data."""
+    """COGS analysis: ALL products (no top limit)."""
     global analyzer, current_data
-    
-    print("💰 COGS analysis route accessed")
-    
     if analyzer is None or not safe_df_check(current_data):
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     try:
-        print("📊 Getting COGS analysis data for ALL products...")
-        # FIXED: Ambil SEMUA data, bukan hanya top 15
-        cogs_data = analyzer.get_cogs_per_product_per_branch(top_n_products=None)  # None = semua
-        
-        if not safe_df_check(cogs_data):
+        cogs = analyzer.get_cogs_per_product_per_branch(top_n_products=None)
+        if not safe_df_check(cogs):
             flash('No COGS data available for analysis.')
             return redirect(url_for('index'))
-        
-        print(f"✅ COGS data loaded: {len(cogs_data)} records")
-        print(f"📋 Unique menus: {cogs_data['Menu'].nunique()}")
-        print(f"🏢 Unique branches: {cogs_data['Branch'].nunique()}")
-        
-        print("📈 Calculating branch COGS efficiency...")
-        branch_cogs = cogs_data.groupby('Branch')['COGS Total (%)'].mean().reset_index()
+
+        branch_cogs = cogs.groupby('Branch')['COGS Total (%)'].mean().reset_index()
         branch_cogs['COGS_Efficiency'] = 100 - branch_cogs['COGS Total (%)']
         branch_cogs = branch_cogs.sort_values('COGS_Efficiency', ascending=False)
-        
-        print("📊 Creating COGS analysis charts...")
-        charts = create_cogs_analysis_charts(cogs_data, branch_cogs)
-        
-        print("✅ Rendering COGS analysis template...")
-        return render_template('cogs_analysis.html',
-                             cogs_data=cogs_data,
-                             branch_cogs=branch_cogs,
-                             charts=charts)
+
+        charts = create_cogs_analysis_charts(cogs, branch_cogs)
+        return render_template('cogs_analysis.html', cogs_data=cogs, branch_cogs=branch_cogs, charts=charts)
     except Exception as e:
-        print(f"❌ Error in COGS analysis: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
-        flash(f'Error loading COGS analysis: {str(e)}')
+        print(f"❌ COGS analysis error: {e}")
+        print(traceback.format_exc())
+        flash(f'Error loading COGS analysis: {e}')
         return redirect(url_for('index'))
+
+@app.route('/debug-cogs')
+def debug_cogs():
+    """Debug COGS — ringkasan lengkap."""
+    global analyzer, current_data
+    if analyzer is None or not safe_df_check(current_data):
+        return "❌ No data available. Please upload files first."
+
+    try:
+        cogs = analyzer.get_cogs_per_product_per_branch(top_n_products=None)
+        if not safe_df_check(cogs): return "❌ No COGS data available."
+
+        info = {
+            'total_records': len(cogs),
+            'unique_branches': cogs['Branch'].nunique(),
+            'unique_menus': cogs['Menu'].nunique(),
+            'branches': cogs['Branch'].unique().tolist(),
+            'sample_data': cogs.head(10).to_dict('records'),
+            'columns': cogs.columns.tolist()
+        }
+        breakdown = {}
+        for br in info['branches']:
+            sub = cogs[cogs['Branch'] == br]
+            breakdown[br] = {
+                'total_records': len(sub),
+                'unique_menus': sub['Menu'].nunique(),
+                'sample_menus': sub['Menu'].unique()[:10].tolist()
+            }
+        info['branch_breakdown'] = breakdown
+
+        return render_template_string('''
+        <h1>🔍 Debug COGS Data (ALL)</h1>
+        <ul>
+          <li>Total records: {{ d.total_records }}</li>
+          <li>Unique branches: {{ d.unique_branches }}</li>
+          <li>Unique menus: {{ d.unique_menus }}</li>
+        </ul>
+        <h3>Branch Breakdown</h3>
+        {% for br, i in d.branch_breakdown.items() %}
+          <div style="border:1px solid #ccc;margin:6px 0;padding:8px;">
+            <b>{{ br }}</b><br>
+            Records: {{ i.total_records }} | Unique menus: {{ i.unique_menus }}<br>
+            Sample: {{ i.sample_menus|join(", ") }}{% if i.unique_menus > 10 %} ...{% endif %}
+          </div>
+        {% endfor %}
+        <h3>Sample (10)</h3>
+        <table border="1" style="border-collapse:collapse;">
+          <tr><th>Branch</th><th>Menu</th><th>COGS %</th><th>Total</th><th>Qty</th><th>Margin</th></tr>
+          {% for r in d.sample_data %}
+          <tr>
+            <td>{{ r.Branch }}</td>
+            <td>{{ r.Menu }}</td>
+            <td>{{ ('%.1f' % r['COGS Total (%)']) if r['COGS Total (%)'] is not none else '-' }}%</td>
+            <td>Rp {{ "{:,}".format(r.Total) if r.Total is not none else '0' }}</td>
+            <td>{{ r.Qty }}</td>
+            <td>Rp {{ "{:,}".format(r.Margin) if r.Margin is not none else '0' }}</td>
+          </tr>
+          {% endfor %}
+        </table>
+        ''', d=info)
+
+    except Exception as e:
+        print(f"❌ Debug COGS error: {e}")
+        return f"❌ Error: {e}"
 
 @app.route('/chat', methods=['GET', 'POST'])
 def chat():
-    """AI chatbot page."""
     global analyzer, chatbot
-    
-    print("🤖 Chat route accessed")
-    
     if analyzer is None:
         flash('No data available. Please upload files first.')
         return redirect(url_for('upload_files'))
-    
+
     if request.method == 'POST':
-        user_question = request.form.get('question', '').strip()
-        
-        if user_question and chatbot:
+        q = request.form.get('question', '').strip()
+        if q and chatbot:
             try:
-                # Prepare data context for AI
-                data_context = analyzer.prepare_data_for_ai()
-                ai_response = chatbot.get_response(user_question, data_context)
-                
-                return jsonify({
-                    'success': True,
-                    'response': ai_response
-                })
+                ctx = analyzer.prepare_data_for_ai()
+                ans = chatbot.get_response(q, ctx)
+                return jsonify({'success': True, 'response': ans})
             except Exception as e:
-                print(f"❌ Chat error: {str(e)}")
-                return jsonify({
-                    'success': False,
-                    'error': str(e)
-                })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'No question provided or chatbot not available'
-            })
-    
-    print("✅ Rendering chat template...")
+                print(f"❌ Chat error: {e}")
+                return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': 'No question provided or chatbot not available'})
+
     return render_template('chat.html', chatbot_available=chatbot is not None)
 
-def create_dashboard_charts():
-    """FIXED: Create charts for main dashboard - PROPER SORTING."""
-    global analyzer
-    
-    if analyzer is None:
-        print("❌ Analyzer not available for charts")
-        return {}
-    
-    charts = {}
-    
-    try:
-        print("📊 Creating revenue comparison chart...")
-        branch_comparison = analyzer.get_branch_revenue_comparison()
-        
-        if not safe_df_check(branch_comparison):
-            print("❌ No branch data for charts")
-            return {}
-        
-        # CRITICAL FIX: Sort data dan maintain order
-        branch_sorted = branch_comparison.sort_values('Total_Revenue', ascending=False).head(10).copy()
-        
-        # Revenue Bar Chart - FIXED dengan explicit ordering
-        fig_revenue = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(branch_sorted))),  # Use numeric indices
-                y=branch_sorted['Total_Revenue'].tolist(),
-                text=[f'Rp {x:,.0f}' for x in branch_sorted['Total_Revenue']],
-                textposition='outside',
-                marker_color='rgba(0, 139, 139, 0.8)',
-                name='Revenue'
-            )
-        ])
-        
-        fig_revenue.update_layout(
-            title='📊 Revenue per Cabang (Top 10)',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(branch_sorted))),
-                ticktext=branch_sorted['Branch'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Revenue (Rp)',
-            height=400,
-            margin=dict(l=20, r=20, t=40, b=120),
-            showlegend=False
-        )
-        charts['revenue_bar'] = json.dumps(fig_revenue, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("🥧 Creating revenue pie chart...")
-        # Revenue pie chart
-        top_8_branches = branch_comparison.head(8)
-        fig_pie = px.pie(
-            top_8_branches,
-            values='Total_Revenue',
-            names='Branch',
-            title='📊 Distribusi Revenue per Cabang (Top 8)'
-        )
-        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-        fig_pie.update_layout(height=400)
-        charts['revenue_pie'] = json.dumps(fig_pie, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("💎 Creating performance matrix...")
-        # Performance matrix scatter
-        fig_scatter = go.Figure()
-        fig_scatter.add_trace(go.Scatter(
-            x=branch_comparison['Total_Revenue'],
-            y=branch_comparison['Margin_Percentage'],
-            mode='markers',
-            marker=dict(
-                size=10,
-                color=branch_comparison['COGS_Percentage'],
-                colorscale='RdYlBu_r',
-                showscale=True,
-                colorbar=dict(title="COGS (%)")
-            ),
-            text=branch_comparison['Branch'],
-            hovertemplate='<b>%{text}</b><br>Revenue: %{x:,.0f}<br>Margin: %{y:.1f}%<extra></extra>'
-        ))
-        fig_scatter.update_layout(
-            title='💎 Matrix Performa Cabang (Revenue vs Margin)',
-            xaxis_title='Total Revenue (Rp)',
-            yaxis_title='Margin (%)',
-            height=400
-        )
-        charts['performance_matrix'] = json.dumps(fig_scatter, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("🍜 Creating top products chart...")
-        # Top products chart
-        try:
-            product_comparison = analyzer.get_product_comparison_by_branch(10)
-            if safe_df_check(product_comparison):
-                top_products = product_comparison.groupby('Menu').agg({
-                    'Qty': 'sum',
-                    'Total': 'sum'
-                }).reset_index().sort_values('Total', ascending=False).head(10).copy()
-                
-                # FIXED: Top products chart dengan explicit ordering
-                fig_products = go.Figure(data=[
-                    go.Bar(
-                        x=list(range(len(top_products))),  # Use numeric indices
-                        y=top_products['Total'].tolist(),
-                        text=[f'Rp {x:,.0f}' for x in top_products['Total']],
-                        textposition='outside',
-                        marker_color='rgba(255, 140, 0, 0.8)',
-                        name='Revenue'
-                    )
-                ])
-                
-                fig_products.update_layout(
-                    title='🍜 Top 10 Produk by Revenue',
-                    xaxis=dict(
-                        tickmode='array',
-                        tickvals=list(range(len(top_products))),
-                        ticktext=top_products['Menu'].tolist(),
-                        tickangle=-45
-                    ),
-                    yaxis_title='Revenue (Rp)',
-                    height=400,
-                    margin=dict(l=20, r=20, t=40, b=120),
-                    showlegend=False
-                )
-                charts['top_products'] = json.dumps(fig_products, cls=plotly.utils.PlotlyJSONEncoder)
-        except Exception as e:
-            print(f"❌ Error creating products chart: {e}")
-        
-        print("✅ Dashboard charts created successfully")
-        
-    except Exception as e:
-        print(f"❌ Error creating dashboard charts: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-    
-    return charts
-
-def create_branch_comparison_charts(branch_data):
-    """FIXED: Create charts for branch comparison - PROPER SORTING."""
-    charts = {}
-    
-    try:
-        if not safe_df_check(branch_data):
-            print("❌ No branch data for comparison charts")
-            return charts
-        
-        print("📊 Creating branch revenue comparison...")
-        branch_sorted = branch_data.sort_values('Total_Revenue', ascending=False).copy()
-        
-        # Revenue comparison chart - FIXED
-        fig_revenue = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(branch_sorted))),
-                y=branch_sorted['Total_Revenue'].tolist(),
-                text=[f'Rp {x:,.0f}' for x in branch_sorted['Total_Revenue']],
-                textposition='outside',
-                marker_color='rgba(0, 139, 139, 0.8)',
-                name='Revenue'
-            )
-        ])
-        
-        fig_revenue.update_layout(
-            title='💰 Total Revenue per Cabang',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(branch_sorted))),
-                ticktext=branch_sorted['Branch'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Revenue (Rp)',
-            height=500,
-            margin=dict(l=20, r=20, t=40, b=120),
-            showlegend=False
-        )
-        charts['revenue_comparison'] = json.dumps(fig_revenue, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("💹 Creating margin vs COGS scatter...")
-        # Margin vs COGS scatter
-        fig_margin_cogs = go.Figure()
-        fig_margin_cogs.add_trace(go.Scatter(
-            x=branch_data['COGS_Percentage'],
-            y=branch_data['Margin_Percentage'],
-            mode='markers',
-            marker=dict(
-                size=12,
-                color=branch_data['Total_Revenue'],
-                colorscale='Viridis',
-                showscale=True,
-                colorbar=dict(title="Revenue (Rp)")
-            ),
-            text=branch_data['Branch'],
-            hovertemplate='<b>%{text}</b><br>COGS: %{x:.1f}%<br>Margin: %{y:.1f}%<extra></extra>'
-        ))
-        fig_margin_cogs.update_layout(
-            title='📊 Margin vs COGS per Cabang',
-            xaxis_title='COGS (%)',
-            yaxis_title='Margin (%)',
-            height=500
-        )
-        charts['margin_cogs'] = json.dumps(fig_margin_cogs, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("⚡ Creating efficiency chart...")
-        # Efficiency chart - FIXED
-        branch_data_copy = branch_data.copy()
-        branch_data_copy['Revenue_per_Transaction'] = branch_data_copy.apply(
-            lambda row: safe_divide(row['Total_Revenue'], row['Transaction_Count']), axis=1
-        )
-        efficiency_sorted = branch_data_copy.sort_values('Revenue_per_Transaction', ascending=False).copy()
-        
-        fig_efficiency = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(efficiency_sorted))),
-                y=efficiency_sorted['Revenue_per_Transaction'].tolist(),
-                text=[f'Rp {x:,.0f}' for x in efficiency_sorted['Revenue_per_Transaction']],
-                textposition='outside',
-                marker_color='rgba(255, 165, 0, 0.8)',
-                name='Efficiency'
-            )
-        ])
-        
-        fig_efficiency.update_layout(
-            title='⚡ Efisiensi Revenue per Transaksi',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(efficiency_sorted))),
-                ticktext=efficiency_sorted['Branch'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Revenue per Transaksi (Rp)',
-            height=500,
-            margin=dict(l=20, r=20, t=40, b=120),
-            showlegend=False
-        )
-        charts['efficiency'] = json.dumps(fig_efficiency, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("✅ Branch comparison charts created successfully")
-        
-    except Exception as e:
-        print(f"❌ Error creating branch comparison charts: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-    
-    return charts
-
-def create_product_analysis_charts(product_data, top_products):
-    """FIXED: Create charts for product analysis - PROPER SORTING."""
-    charts = {}
-    
-    try:
-        if not safe_df_check(product_data) or not safe_df_check(top_products):
-            print("❌ No product data for analysis charts")
-            return charts
-        
-        print("💰 Creating top revenue products chart...")
-        # Top products by revenue - FIXED
-        top_revenue_data = top_products.head(15).sort_values('Total', ascending=False).copy()
-        
-        fig_top_revenue = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(top_revenue_data))),
-                y=top_revenue_data['Total'].tolist(),
-                text=[f'Rp {x:,.0f}' for x in top_revenue_data['Total']],
-                textposition='outside',
-                marker_color='rgba(0, 139, 139, 0.8)',
-                name='Revenue'
-            )
-        ])
-        
-        fig_top_revenue.update_layout(
-            title='💰 Top 15 Produk by Revenue',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(top_revenue_data))),
-                ticktext=top_revenue_data['Menu'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Revenue (Rp)',
-            height=600,
-            margin=dict(l=20, r=20, t=40, b=150),
-            showlegend=False
-        )
-        charts['top_revenue'] = json.dumps(fig_top_revenue, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("📦 Creating top quantity products chart...")
-        # Top products by quantity - FIXED
-        top_by_qty = top_products.sort_values('Qty', ascending=False).head(15).copy()
-        
-        fig_top_qty = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(top_by_qty))),
-                y=top_by_qty['Qty'].tolist(),
-                text=[f'{x:,}' for x in top_by_qty['Qty']],
-                textposition='outside',
-                marker_color='rgba(255, 140, 0, 0.8)',
-                name='Quantity'
-            )
-        ])
-        
-        fig_top_qty.update_layout(
-            title='📦 Top 15 Produk by Quantity',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(top_by_qty))),
-                ticktext=top_by_qty['Menu'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Quantity',
-            height=600,
-            margin=dict(l=20, r=20, t=40, b=150),
-            showlegend=False
-        )
-        charts['top_quantity'] = json.dumps(fig_top_qty, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("✅ Product analysis charts created successfully")
-        
-    except Exception as e:
-        print(f"❌ Error creating product analysis charts: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-    
-    return charts
-
-def create_minimal_time_charts(time_data):
-    """MINIMAL SAFE: Create only basic charts without complex data processing."""
-    charts = {}
-    
-    try:
-        print("📊 Creating MINIMAL time charts...")
-        
-        # Chart 1: Daily Pattern - ONLY if data exists
-        if 'daily_pattern' in time_data and safe_df_check(time_data['daily_pattern']):
-            try:
-                daily_df = time_data['daily_pattern']
-                if 'Day_of_Week' in daily_df.columns and 'Total_Revenue' in daily_df.columns:
-                    daily_summary = daily_df.groupby('Day_of_Week')['Total_Revenue'].sum().reset_index()
-                    
-                    # Simple day ordering
-                    day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                    day_mapping = {day: i for i, day in enumerate(day_order)}
-                    daily_summary['Day_Index'] = daily_summary['Day_of_Week'].map(day_mapping).fillna(7)
-                    daily_summary = daily_summary.sort_values('Day_Index')
-                    
-                    fig_daily = go.Figure(data=[
-                        go.Bar(
-                            x=daily_summary['Day_of_Week'].tolist(),
-                            y=daily_summary['Total_Revenue'].tolist(),
-                            text=[f'Rp {x:,.0f}' for x in daily_summary['Total_Revenue']],
-                            textposition='outside',
-                            marker_color='rgba(0, 139, 139, 0.8)'
-                        )
-                    ])
-                    
-                    fig_daily.update_layout(
-                        title='📊 Penjualan per Hari dalam Seminggu',
-                        xaxis_title='Hari',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=False
-                    )
-                    charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
-                    print("✅ Daily pattern chart created")
-            except Exception as e:
-                print(f"❌ Error creating daily chart: {e}")
-        
-        # Chart 2: Branch Trends - ONLY if data exists  
-        if 'daily_trend' in time_data and safe_df_check(time_data['daily_trend']):
-            try:
-                daily_trend_df = time_data['daily_trend']
-                if 'Branch' in daily_trend_df.columns and 'Total' in daily_trend_df.columns:
-                    # Get top 3 branches only (simpler)
-                    branch_totals = daily_trend_df.groupby('Branch')['Total'].sum().sort_values(ascending=False)
-                    top_3_branches = branch_totals.head(3).index.tolist()
-                    
-                    fig_trends = go.Figure()
-                    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
-                    
-                    for i, branch in enumerate(top_3_branches):
-                        branch_data = daily_trend_df[daily_trend_df['Branch'] == branch]
-                        if 'Date' in branch_data.columns:
-                            branch_data = branch_data.sort_values('Date')
-                            fig_trends.add_trace(go.Scatter(
-                                x=branch_data['Date'],
-                                y=branch_data['Total'],
-                                mode='lines+markers',
-                                name=branch,
-                                line=dict(width=2, color=colors[i]),
-                                marker=dict(size=4)
-                            ))
-                    
-                    fig_trends.update_layout(
-                        title='📅 Trend Penjualan Harian (Top 3 Cabang)',
-                        xaxis_title='Tanggal',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=True
-                    )
-                    charts['branch_trends'] = json.dumps(fig_trends, cls=plotly.utils.PlotlyJSONEncoder)
-                    print("✅ Branch trends chart created")
-            except Exception as e:
-                print(f"❌ Error creating trends chart: {e}")
-        
-        # Chart 3: Simple Monthly Summary
-        if 'monthly' in time_data and safe_df_check(time_data['monthly']):
-            try:
-                monthly_df = time_data['monthly']
-                if 'Month' in monthly_df.columns and 'Total' in monthly_df.columns:
-                    monthly_summary = monthly_df.groupby('Month')['Total'].sum().reset_index()
-                    monthly_summary = monthly_summary.sort_values('Month')
-                    
-                    fig_monthly = go.Figure(data=[
-                        go.Bar(
-                            x=[f'Month {int(m)}' for m in monthly_summary['Month']],
-                            y=monthly_summary['Total'].tolist(),
-                            text=[f'Rp {x:,.0f}' for x in monthly_summary['Total']],
-                            textposition='outside',
-                            marker_color='rgba(255, 165, 0, 0.8)'
-                        )
-                    ])
-                    
-                    fig_monthly.update_layout(
-                        title='📊 Total Penjualan per Bulan',
-                        xaxis_title='Bulan',
-                        yaxis_title='Revenue (Rp)',
-                        height=400,
-                        showlegend=False
-                    )
-                    charts['monthly_comparison'] = json.dumps(fig_monthly, cls=plotly.utils.PlotlyJSONEncoder)
-                    print("✅ Monthly chart created")
-            except Exception as e:
-                print(f"❌ Error creating monthly chart: {e}")
-        
-        # If no charts created, create empty placeholders
-        if not charts:
-            print("⚠️ No charts created, adding placeholders")
-            empty_fig = go.Figure()
-            empty_fig.add_annotation(
-                text="Data tidak tersedia untuk analisis waktu",
-                xref="paper", yref="paper",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(size=16, color="gray")
-            )
-            empty_fig.update_layout(height=300)
-            
-            charts = {
-                'daily_pattern': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder),
-                'branch_trends': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder),
-                'monthly_comparison': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
-            }
-        
-        print("✅ Minimal time charts completed")
-        
-    except Exception as e:
-        print(f"❌ Error creating minimal time charts: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-        
-        # Fallback: empty charts
-        empty_fig = go.Figure()
-        empty_fig.add_annotation(
-            text="Error memuat data",
-            xref="paper", yref="paper", 
-            x=0.5, y=0.5, showarrow=False
-        )
-        empty_fig.update_layout(height=300)
-        
-        charts = {
-            'daily_pattern': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder),
-            'branch_trends': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder),
-            'monthly_comparison': json.dumps(empty_fig, cls=plotly.utils.PlotlyJSONEncoder)
-        }
-    
-    return charts
-
-def create_cogs_analysis_charts(cogs_data, branch_cogs):
-    """FIXED: Create charts for COGS analysis - PROPER SORTING."""
-    charts = {}
-    
-    try:
-        if not safe_df_check(cogs_data) or not safe_df_check(branch_cogs):
-            print("❌ No COGS data for analysis charts")
-            return charts
-        
-        print("🔥 Creating COGS heatmap...")
-        # COGS heatmap - top 15 products only
-        top_products = cogs_data.groupby('Menu')['Total'].sum().nlargest(15).index
-        filtered_cogs = cogs_data[cogs_data['Menu'].isin(top_products)]
-        
-        if safe_df_check(filtered_cogs):
-            cogs_pivot = filtered_cogs.pivot(
-                index='Menu',
-                columns='Branch',
-                values='COGS Total (%)'
-            ).fillna(0)
-            
-            fig_cogs_heatmap = px.imshow(
-                cogs_pivot,
-                title='🔥 COGS Percentage per Produk per Cabang (Top 15)',
-                aspect='auto',
-                color_continuous_scale='RdYlGn_r',
-                labels={'color': 'COGS (%)'}
-            )
-            fig_cogs_heatmap.update_layout(height=600)
-            charts['cogs_heatmap'] = json.dumps(fig_cogs_heatmap, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("📊 Creating branch COGS efficiency chart...")
-        # Branch COGS efficiency - FIXED
-        branch_cogs_sorted = branch_cogs.sort_values('COGS_Efficiency', ascending=False).copy()
-        
-        fig_branch_cogs = go.Figure(data=[
-            go.Bar(
-                x=list(range(len(branch_cogs_sorted))),
-                y=branch_cogs_sorted['COGS_Efficiency'].tolist(),
-                text=[f'{x:.1f}%' for x in branch_cogs_sorted['COGS_Efficiency']],
-                textposition='outside',
-                marker_color='rgba(50, 205, 50, 0.8)',
-                name='COGS Efficiency'
-            )
-        ])
-        
-        fig_branch_cogs.update_layout(
-            title='📊 Efisiensi COGS per Cabang',
-            xaxis=dict(
-                tickmode='array',
-                tickvals=list(range(len(branch_cogs_sorted))),
-                ticktext=branch_cogs_sorted['Branch'].tolist(),
-                tickangle=-45
-            ),
-            yaxis_title='Efisiensi COGS (%)',
-            height=500,
-            margin=dict(l=20, r=20, t=40, b=120),
-            showlegend=False
-        )
-        charts['branch_efficiency'] = json.dumps(fig_branch_cogs, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("📊 Creating COGS variance chart...")
-        # COGS variance - FIXED
-        product_cogs_stats = cogs_data.groupby('Menu')['COGS Total (%)'].agg(['mean', 'std', 'count']).reset_index()
-        product_cogs_stats = product_cogs_stats[
-            (product_cogs_stats['count'] > 1) & 
-            (product_cogs_stats['std'] > 0) & 
-            (product_cogs_stats['mean'] > 0)
-        ]
-        
-        if safe_df_check(product_cogs_stats):
-            product_cogs_stats['CV'] = product_cogs_stats['std'] / product_cogs_stats['mean']
-            cogs_variance_sorted = product_cogs_stats.sort_values('CV', ascending=False).head(15).copy()
-            
-            fig_cogs_variance = go.Figure(data=[
-                go.Bar(
-                    x=list(range(len(cogs_variance_sorted))),
-                    y=cogs_variance_sorted['CV'].tolist(),
-                    text=[f'{x:.2f}' for x in cogs_variance_sorted['CV']],
-                    textposition='outside',
-                    marker_color='rgba(220, 20, 60, 0.8)',
-                    name='COGS Variance'
-                )
-            ])
-            
-            fig_cogs_variance.update_layout(
-                title='📊 Top 15 Produk dengan Variasi COGS Tertinggi',
-                xaxis=dict(
-                    tickmode='array',
-                    tickvals=list(range(len(cogs_variance_sorted))),
-                    ticktext=cogs_variance_sorted['Menu'].tolist(),
-                    tickangle=-45
-                ),
-                yaxis_title='Coefficient of Variation',
-                height=600,
-                margin=dict(l=20, r=20, t=40, b=150),
-                showlegend=False
-            )
-            charts['cogs_variance'] = json.dumps(fig_cogs_variance, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        print("✅ COGS analysis charts created successfully")
-        
-    except Exception as e:
-        print(f"❌ Error creating COGS analysis charts: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-    
-    return charts
-
-# Custom template filters
-@app.template_filter('currency')
-def currency_filter(value):
-    return format_currency(value)
-
-@app.template_filter('percentage')
-def percentage_filter(value):
-    return format_percentage(value)
-
-@app.template_filter('number')
-def number_filter(value):
-    return format_number(value)
-
-@app.template_filter('round')
-def round_filter(value, precision=2):
-    try:
-        return round(float(value), precision)
-    except (ValueError, TypeError):
-        return value
-
-# Error handlers dengan logging yang lebih baik
-@app.errorhandler(404)
-def not_found_error(error):
-    print(f"❌ 404 Error: {request.url}")
-    return render_template('error.html', 
-                         error_code=404, 
-                         error_message="Halaman tidak ditemukan"), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    print(f"❌ 500 Error: {str(error)}")
-    print(f"Traceback: {traceback.format_exc()}")
-    return render_template('error.html', 
-                         error_code=500, 
-                         error_message="Terjadi kesalahan internal server"), 500
-
-@app.errorhandler(413)
-def too_large(error):
-    print(f"❌ 413 Error: File too large")
-    return render_template('error.html', 
-                         error_code=413, 
-                         error_message="File terlalu besar. Maksimal 50MB per file"), 413
-
-@app.errorhandler(Exception)
-def handle_exception(e):
-    print(f"❌ Unhandled Exception: {str(e)}")
-    print(f"Traceback: {traceback.format_exc()}")
-    
-    # Check if it's a template not found error
-    if "TemplateNotFound" in str(e):
-        return f"Template not found: {str(e)}. Please check if all template files exist in the templates folder.", 500
-    
-    return f"An error occurred: {str(e)}", 500
-
-# Debug route untuk check status
 @app.route('/debug')
 def debug_status():
-    """Debug route untuk check system status."""
     status = {
         'analyzer_loaded': analyzer is not None,
         'data_loaded': safe_df_check(current_data),
@@ -1715,48 +414,357 @@ def debug_status():
         'templates_dir': os.path.abspath(app.template_folder),
         'templates_exist': os.path.exists(app.template_folder),
         'current_dir': os.getcwd(),
-        'python_path': sys.path[:3]  # Show first 3 paths
+        'python_path': sys.path[:3]
     }
-    
     if os.path.exists(app.template_folder):
         status['template_files'] = [f for f in os.listdir(app.template_folder) if f.endswith('.html')]
-    
     if analyzer and safe_df_check(current_data):
         status['data_summary'] = {
             'total_records': len(current_data),
             'branches': len(analyzer.branches),
             'unique_products': current_data['Menu'].nunique() if 'Menu' in current_data.columns else 0,
-            'date_range': f"{current_data['Sales Date'].min()} to {current_data['Sales Date'].max()}"
+            'date_range': f"{current_data['Sales Date'].min()} to {current_data['Sales Date'].max()}" if 'Sales Date' in current_data.columns else "N/A"
         }
-    
     return jsonify(status)
 
+# ===== Chart Builders =====
+def create_dashboard_charts():
+    global analyzer
+    charts = {}
+    try:
+        df = analyzer.get_branch_revenue_comparison()
+        if not safe_df_check(df): return charts
+
+        # Revenue bar (Top 10 utk kerapian di dashboard)
+        top = df.sort_values('Total_Revenue', ascending=False).head(10).copy()
+        fig_revenue = go.Figure([go.Bar(
+            x=list(range(len(top))),
+            y=top['Total_Revenue'].tolist(),
+            text=[f'Rp {x:,.0f}' for x in top['Total_Revenue']],
+            textposition='outside',
+            marker_color='rgba(0,139,139,0.8)'
+        )])
+        fig_revenue.update_layout(
+            title='📊 Revenue per Cabang (Top 10)',
+            xaxis=dict(tickmode='array', tickvals=list(range(len(top))), ticktext=top['Branch'].tolist(), tickangle=-45),
+            yaxis_title='Revenue (Rp)', height=400, margin=dict(l=20,r=20,t=40,b=120), showlegend=False
+        )
+        charts['revenue_bar'] = json.dumps(fig_revenue, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Revenue Pie (Top 8)
+        top8 = df.sort_values('Total_Revenue', ascending=False).head(8)
+        fig_pie = px.pie(top8, values='Total_Revenue', names='Branch', title='📊 Distribusi Revenue per Cabang (Top 8)')
+        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+        fig_pie.update_layout(height=400)
+        charts['revenue_pie'] = json.dumps(fig_pie, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Performance matrix
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=df['Total_Revenue'],
+            y=df['Margin_Percentage'],
+            mode='markers',
+            marker=dict(size=10, color=df['COGS_Percentage'], colorscale='RdYlBu_r', showscale=True, colorbar=dict(title="COGS (%)")),
+            text=df['Branch'],
+            hovertemplate='<b>%{text}</b><br>Revenue: Rp %{x:,.0f}<br>Margin: %{y:.1f}%<extra></extra>'
+        ))
+        fig_scatter.update_layout(
+            title='💎 Matrix Performa Cabang (Revenue vs Margin)',
+            xaxis_title='Total Revenue (Rp)', yaxis_title='Margin (%)', height=400
+        )
+        charts['performance_matrix'] = json.dumps(fig_scatter, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Top products (dashboard context)
+        try:
+            prod = analyzer.get_product_comparison_by_branch(10)
+            if safe_df_check(prod):
+                top_prod = (prod.groupby('Menu').agg({'Qty':'sum','Total':'sum'}).reset_index()
+                            .sort_values('Total', ascending=False).head(10))
+                fig_prod = go.Figure([go.Bar(
+                    x=list(range(len(top_prod))),
+                    y=top_prod['Total'].tolist(),
+                    text=[f'Rp {x:,.0f}' for x in top_prod['Total']],
+                    textposition='outside',
+                    marker_color='rgba(255,140,0,0.8)'
+                )])
+                fig_prod.update_layout(
+                    title='🍜 Top 10 Produk by Revenue',
+                    xaxis=dict(tickmode='array', tickvals=list(range(len(top_prod))), ticktext=top_prod['Menu'].tolist(), tickangle=-45),
+                    yaxis_title='Revenue (Rp)', height=400, margin=dict(l=20,r=20,t=40,b=120), showlegend=False
+                )
+                charts['top_products'] = json.dumps(fig_prod, cls=plotly.utils.PlotlyJSONEncoder)
+        except Exception as e:
+            print(f"⚠️ Products chart error: {e}")
+
+    except Exception as e:
+        print(f"❌ Dashboard charts error: {e}")
+        print(traceback.format_exc())
+    return charts
+
+def create_branch_comparison_charts(df):
+    charts = {}
+    try:
+        if not safe_df_check(df): return charts
+
+        ordered = df.sort_values('Total_Revenue', ascending=False).copy()
+        fig_rev = go.Figure([go.Bar(
+            x=list(range(len(ordered))),
+            y=ordered['Total_Revenue'].tolist(),
+            text=[f'Rp {x:,.0f}' for x in ordered['Total_Revenue']],
+            textposition='outside',
+            marker_color='rgba(0,139,139,0.8)'
+        )])
+        fig_rev.update_layout(
+            title='💰 Total Revenue per Cabang',
+            xaxis=dict(tickmode='array', tickvals=list(range(len(ordered))), ticktext=ordered['Branch'].tolist(), tickangle=-45),
+            yaxis_title='Revenue (Rp)', height=500, margin=dict(l=20,r=20,t=40,b=120), showlegend=False
+        )
+        charts['revenue_comparison'] = json.dumps(fig_rev, cls=plotly.utils.PlotlyJSONEncoder)
+
+        fig_mc = go.Figure()
+        fig_mc.add_trace(go.Scatter(
+            x=df['COGS_Percentage'],
+            y=df['Margin_Percentage'],
+            mode='markers',
+            marker=dict(size=12, color=df['Total_Revenue'], colorscale='Viridis', showscale=True, colorbar=dict(title="Revenue (Rp)")),
+            text=df['Branch'],
+            hovertemplate='<b>%{text}</b><br>COGS: %{x:.1f}%<br>Margin: %{y:.1f}%<extra></extra>'
+        ))
+        fig_mc.update_layout(title='📊 Margin vs COGS per Cabang', xaxis_title='COGS (%)', yaxis_title='Margin (%)', height=500)
+        charts['margin_cogs'] = json.dumps(fig_mc, cls=plotly.utils.PlotlyJSONEncoder)
+
+        tmp = df.copy()
+        tmp['Revenue_per_Transaction'] = tmp.apply(lambda r: safe_divide(r['Total_Revenue'], r['Transaction_Count']), axis=1)
+        eff = tmp.sort_values('Revenue_per_Transaction', ascending=False)
+        fig_eff = go.Figure([go.Bar(
+            x=list(range(len(eff))),
+            y=eff['Revenue_per_Transaction'].tolist(),
+            text=[f'Rp {x:,.0f}' for x in eff['Revenue_per_Transaction']],
+            textposition='outside',
+            marker_color='rgba(255,165,0,0.8)'
+        )])
+        fig_eff.update_layout(
+            title='⚡ Efisiensi Revenue per Transaksi',
+            xaxis=dict(tickmode='array', tickvals=list(range(len(eff))), ticktext=eff['Branch'].tolist(), tickangle=-45),
+            yaxis_title='Revenue per Transaksi (Rp)', height=500, margin=dict(l=20,r=20,t=40,b=120), showlegend=False
+        )
+        charts['efficiency'] = json.dumps(fig_eff, cls=plotly.utils.PlotlyJSONEncoder)
+
+    except Exception as e:
+        print(f"❌ Branch comparison charts error: {e}")
+        print(traceback.format_exc())
+    return charts
+
+def create_cogs_analysis_charts(cogs, branch_cogs):
+    charts = {}
+    try:
+        if not (safe_df_check(cogs) and safe_df_check(branch_cogs)): return charts
+
+        # Heatmap top 15 produk by revenue (untuk keterbacaan)
+        top15 = cogs.groupby('Menu')['Total'].sum().nlargest(15).index
+        filt = cogs[cogs['Menu'].isin(top15)]
+        if safe_df_check(filt):
+            piv = filt.pivot(index='Menu', columns='Branch', values='COGS Total (%)').fillna(0)
+            fig_heat = px.imshow(piv, title='🔥 COGS % per Produk per Cabang (Top 15)', aspect='auto',
+                                 color_continuous_scale='RdYlGn_r', labels={'color': 'COGS (%)'})
+            fig_heat.update_layout(height=600)
+            charts['cogs_heatmap'] = json.dumps(fig_heat, cls=plotly.utils.PlotlyJSONEncoder)
+
+        ordered = branch_cogs.sort_values('COGS_Efficiency', ascending=False)
+        fig_eff = go.Figure([go.Bar(
+            x=list(range(len(ordered))),
+            y=ordered['COGS_Efficiency'].tolist(),
+            text=[f'{x:.1f}%' for x in ordered['COGS_Efficiency']],
+            textposition='outside',
+            marker_color='rgba(50,205,50,0.8)'
+        )])
+        fig_eff.update_layout(
+            title='📊 Efisiensi COGS per Cabang',
+            xaxis=dict(tickmode='array', tickvals=list(range(len(ordered))), ticktext=ordered['Branch'].tolist(), tickangle=-45),
+            yaxis_title='Efisiensi COGS (%)', height=500, margin=dict(l=20,r=20,t=40,b=120), showlegend=False
+        )
+        charts['branch_efficiency'] = json.dumps(fig_eff, cls=plotly.utils.PlotlyJSONEncoder)
+
+        stats = cogs.groupby('Menu')['COGS Total (%)'].agg(['mean','std','count']).reset_index()
+        stats = stats[(stats['count'] > 1) & (stats['std'] > 0) & (stats['mean'] > 0)].copy()
+        if safe_df_check(stats):
+            stats['CV'] = stats['std'] / stats['mean']
+            top_cv = stats.sort_values('CV', ascending=False).head(15)
+            fig_cv = go.Figure([go.Bar(
+                x=list(range(len(top_cv))),
+                y=top_cv['CV'].tolist(),
+                text=[f'{x:.2f}' for x in top_cv['CV']],
+                textposition='outside',
+                marker_color='rgba(220,20,60,0.8)'
+            )])
+            fig_cv.update_layout(
+                title='📊 Top 15 Produk dengan Variasi COGS Tertinggi',
+                xaxis=dict(tickmode='array', tickvals=list(range(len(top_cv))), ticktext=top_cv['Menu'].tolist(), tickangle=-45),
+                yaxis_title='Coefficient of Variation', height=600, margin=dict(l=20,r=20,t=40,b=150), showlegend=False
+            )
+            charts['cogs_variance'] = json.dumps(fig_cv, cls=plotly.utils.PlotlyJSONEncoder)
+
+    except Exception as e:
+        print(f"❌ COGS charts error: {e}")
+        print(traceback.format_exc())
+    return charts
+
+def create_time_charts_all_branches(time_analysis):
+    """Time analysis. Branch trends: SEMUA cabang, hover single-trace only."""
+    charts = {}
+    try:
+        # Daily pattern (opsional)
+        if time_analysis.get('daily_pattern', {}).get('length', 0) > 0:
+            daily = time_analysis['daily_pattern']['data']
+            agg = {}
+            for it in daily:
+                d = it.get('Day_of_Week', 'Unknown')
+                r = it.get('Total_Revenue', 0) or 0
+                agg[d] = agg.get(d, 0) + r
+            if agg:
+                days = list(agg.keys())
+                vals = list(agg.values())
+                fig_daily = go.Figure([go.Bar(
+                    x=days, y=vals,
+                    text=[f'Rp {x:,.0f}' for x in vals], textposition='outside',
+                    marker_color='rgba(0,139,139,0.8)'
+                )])
+                fig_daily.update_layout(
+                    title='📊 Penjualan per Hari dalam Seminggu',
+                    xaxis_title='Hari', yaxis_title='Revenue (Rp)',
+                    height=400, showlegend=False
+                )
+                charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Branch trends (ALL branches) — HOVER PER TRACE
+        if time_analysis.get('daily_trend', {}).get('length', 0) > 0:
+            trend = time_analysis['daily_trend']['data']
+            per_branch, totals = {}, {}
+            for row in trend:
+                br = row.get('Branch', 'Unknown')
+                dt = row.get('Date')
+                rv = row.get('Total', 0) or 0
+                per_branch.setdefault(br, []).append((dt, rv))
+                totals[br] = totals.get(br, 0) + rv
+
+            ordered = [b for b, _ in sorted(totals.items(), key=lambda x: x[1], reverse=True)]
+
+            fig_trends = go.Figure()
+            for br in ordered:
+                pts = sorted(per_branch[br], key=lambda x: x[0] or "")
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+                fig_trends.add_trace(go.Scatter(
+                    x=xs, y=ys,
+                    mode='lines+markers',
+                    name=br,
+                    line=dict(width=2),
+                    marker=dict(size=4),
+                    hovertemplate="<b>%{x}</b><br>Branch: " + br + "<br>Revenue: Rp %{y:,.0f}<extra></extra>"
+                ))
+
+            # ✅ HANYA tooltip untuk trace yang di-pointer
+            fig_trends.update_layout(
+                title='📅 Branch Sales Trends Over Time (All Branches)',
+                xaxis_title='Tanggal',
+                yaxis_title='Revenue (Rp)',
+                height=450,
+                hovermode='closest',  # <-- perbaikan utama (bukan 'x unified')
+                # Garis panduan nyaman saat hover (tanpa tooltip gabungan)
+                xaxis=dict(
+                    showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1
+                ),
+                spikedistance=-1,
+                hoverlabel=dict(namelength=-1),
+                legend=dict(orientation='h', y=-0.2),
+                margin=dict(t=60, l=60, r=20, b=80),
+                uirevision="keep-zoom"
+            )
+            charts['branch_trends'] = json.dumps(fig_trends, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Monthly (opsional)
+        if time_analysis.get('monthly', {}).get('length', 0) > 0:
+            monthly = time_analysis['monthly']['data']
+            agg = {}
+            for it in monthly:
+                m = it.get('Month', 0) or 0
+                r = it.get('Total', 0) or 0
+                agg[m] = agg.get(m, 0) + r
+            if agg:
+                months = sorted(agg.keys())
+                vals = [agg[m] for m in months]
+                fig_mon = go.Figure([go.Bar(
+                    x=[f'Month {int(m)}' for m in months],
+                    y=vals, text=[f'Rp {x:,.0f}' for x in vals], textposition='outside',
+                    marker_color='rgba(255,165,0,0.8)'
+                )])
+                fig_mon.update_layout(
+                    title='📊 Total Penjualan per Bulan',
+                    xaxis_title='Bulan', yaxis_title='Revenue (Rp)',
+                    height=400, showlegend=False
+                )
+                charts['monthly_comparison'] = json.dumps(fig_mon, cls=plotly.utils.PlotlyJSONEncoder)
+
+        # Placeholder jika semua kosong
+        if not charts:
+            empty = go.Figure()
+            empty.add_annotation(text="Data sedang diproses, silakan refresh halaman",
+                                 xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False,
+                                 font=dict(size=16, color="gray"))
+            empty.update_layout(height=300)
+            ph = json.dumps(empty, cls=plotly.utils.PlotlyJSONEncoder)
+            charts = {'daily_pattern': ph, 'branch_trends': ph, 'monthly_comparison': ph}
+
+        print("✅ Time charts built (ALL branches, hover single-trace)")
+    except Exception as e:
+        print(f"❌ Time charts error: {e}")
+        print(traceback.format_exc())
+        empty = json.dumps({"data": [], "layout": {"title": "Chart tidak dapat dimuat"}})
+        charts = {'daily_pattern': empty, 'branch_trends': empty, 'monthly_comparison': empty}
+    return charts
+
+# ===== Error Handlers =====
+@app.errorhandler(404)
+def not_found_error(error):
+    print(f"❌ 404: {request.url}")
+    return render_template('error.html', error_code=404, error_message="Halaman tidak ditemukan"), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    print(f"❌ 500: {error}")
+    print(traceback.format_exc())
+    return render_template('error.html', error_code=500, error_message="Terjadi kesalahan internal server"), 500
+
+@app.errorhandler(413)
+def too_large(error):
+    print("❌ 413: File too large")
+    return render_template('error.html', error_code=413, error_message="File terlalu besar. Maksimal 50MB per file"), 413
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    print(f"❌ Unhandled: {e}")
+    print(traceback.format_exc())
+    if "TemplateNotFound" in str(e):
+        return f"Template not found: {str(e)}. Check templates folder.", 500
+    return f"An error occurred: {str(e)}", 500
+
+# ===== Main =====
 if __name__ == '__main__':
     print("🚀 Starting Flask Multi-Branch Analytics...")
-    print(f"📁 Templates folder: {app.template_folder}")
-    print(f"📁 Static folder: {app.static_folder}")
-    print(f"🔧 Debug mode: {app.config['DEBUG']}")
-    
-    # Check critical files
-    required_templates = [
-        'base.html', 'dashboard.html', 'upload.html', 
-        'branch_comparison.html', 'product_analysis.html', 
-        'sales_by_time.html', 'cogs_analysis.html', 'chat.html', 'error.html'
+    print(f"📁 Templates: {app.template_folder}")
+    print(f"📁 Static:    {app.static_folder}")
+    print(f"🔧 Debug:     {app.config['DEBUG']}")
+
+    required = [
+        'base.html','dashboard.html','upload.html',
+        'branch_comparison.html','product_analysis.html',
+        'sales_by_time.html','cogs_analysis.html','chat.html','error.html'
     ]
-    
-    missing_templates = []
-    for template in required_templates:
-        template_path = os.path.join(app.template_folder, template)
-        if not os.path.exists(template_path):
-            missing_templates.append(template)
-    
-    if missing_templates:
-        print(f"❌ Missing template files: {missing_templates}")
-        print("Please make sure all template files are in the templates folder")
+    missing = [t for t in required if not os.path.exists(os.path.join(app.template_folder, t))]
+    if missing:
+        print(f"❌ Missing templates: {missing}")
     else:
-        print("✅ All required template files found")
-    
-    print("🌐 Starting server on http://127.0.0.1:5000")
-    print("🔍 Visit /debug for system status")
-    
+        print("✅ All required templates found")
+
+    print("🌐 http://127.0.0.1:5000  |  🔍 /debug for status")
     app.run(debug=True, host='127.0.0.1', port=5000)
