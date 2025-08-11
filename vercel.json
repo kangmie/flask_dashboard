@@ -5,7 +5,7 @@
       "src": "app.py",
       "use": "@vercel/python",
       "config": {
-        "runtime": "python3.12",
+        "runtime": "python3.11",
         "maxLambdaSize": "50mb"
       }
     }
@@ -19,7 +19,11 @@
   "env": {
     "FLASK_ENV": "production",
     "PYTHONUNBUFFERED": "1"
+  },
+  "functions": {
+    "app.py": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
   }
 }
-
-
