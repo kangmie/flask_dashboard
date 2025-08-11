@@ -32,12 +32,17 @@ except ImportError as e:
 app = Flask(
     __name__,
     template_folder=os.path.abspath('templates'),
-    static_folder=os.path.abspath('static')
+    static_folder=os.path.abspath('static') if os.path.exists('static') else None
 )
-app.secret_key = os.getenv('SECRET_KEY', 'debug-secret-key-change-in-production')
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-app.config['DEBUG'] = True
+app.secret_key = os.getenv('SECRET_KEY', 'vercel-secret-key-change-in-production')
+
+# ===== Vercel Configuration =====
+# Vercel serverless functions have limitations
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # Reduced to 10MB for Vercel
+app.config['DEBUG'] = False  # Always False in production
+app.config['UPLOAD_FOLDER'] = '/tmp'  # Use /tmp in Vercel
+
+# Create upload folder if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # ===== Global State =====
@@ -94,8 +99,7 @@ def index():
     print("🔍 Dashboard route accessed")
 
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.', 'warning')
-        return redirect(url_for('upload_files'))
+        return render_template('upload.html')
 
     try:
         summary_stats = analyzer.get_branch_summary_stats()
@@ -120,129 +124,7 @@ def index():
     except Exception as e:
         print(f"❌ Error in dashboard: {e}")
         print(traceback.format_exc())
-        flash(f'Error loading dashboard: {e}', 'danger')
-        return redirect(url_for('upload_files'))
-
-# @app.route('/upload', methods=['GET', 'POST'])
-# def upload_files():
-#     print("📁 Upload route accessed")
-#     if request.method == 'POST':
-#         if 'files[]' not in request.files:
-#             flash('No files selected', 'warning')
-#             return redirect(request.url)
-
-#         files = request.files.getlist('files[]')
-#         if not files or files[0].filename == '':
-#             flash('No files selected', 'warning')
-#             return redirect(request.url)
-
-#         uploaded = []
-#         failed_files = []
-        
-#         for f in files:
-#             if f and allowed_file(f.filename):
-#                 try:
-#                     name = secure_filename(f.filename)
-#                     path = os.path.join(app.config['UPLOAD_FOLDER'], name)
-#                     f.save(path)
-#                     uploaded.append(path)
-#                     print(f"📄 Saved: {name}")
-#                 except Exception as e:
-#                     print(f"❌ Failed to save {f.filename}: {e}")
-#                     failed_files.append(f.filename)
-#             else:
-#                 failed_files.append(f.filename if hasattr(f, 'filename') else 'Unknown file')
-
-#         if not uploaded:
-#             error_msg = 'No valid Excel files found'
-#             if failed_files:
-#                 error_msg += f'. Failed files: {", ".join(failed_files[:3])}'
-#                 if len(failed_files) > 3:
-#                     error_msg += f' and {len(failed_files) - 3} more'
-#             flash(error_msg, 'danger')
-#             return redirect(request.url)
-
-#         try:
-#             global analyzer, current_data, chatbot
-#             if MultiBranchSalesAnalyzer is None:
-#                 flash('Analyzer module not available. Check imports.', 'danger')
-#                 return redirect(url_for('upload_files'))
-
-#             analyzer = MultiBranchSalesAnalyzer()
-
-#             buffers = []
-#             for p in uploaded:
-#                 try:
-#                     with open(p, 'rb') as fh:
-#                         b = io.BytesIO(fh.read())
-#                         b.name = os.path.basename(p)
-#                         buffers.append(b)
-#                 except Exception as e:
-#                     print(f"❌ Error reading file {p}: {e}")
-#                     continue
-
-#             if not buffers:
-#                 flash('No files could be processed successfully.', 'danger')
-#                 return redirect(url_for('upload_files'))
-
-#             current_data = analyzer.load_multiple_files(buffers)
-#             if not safe_df_check(current_data):
-#                 flash('No valid data found in uploaded files.', 'danger')
-#                 return redirect(url_for('upload_files'))
-
-#             # Initialize chatbot (optional)
-#             try:
-#                 chatbot = GroqChatbot() if GroqChatbot else None
-#                 if chatbot: 
-#                     print("✅ Chatbot initialized")
-#                 else:
-#                     print("⚠️ Chatbot not available (GroqChatbot not imported)")
-#             except Exception as e:
-#                 print(f"⚠️ Chatbot init failed: {e}")
-#                 chatbot = None
-
-#             # Cleanup uploaded files
-#             for p in uploaded:
-#                 try:
-#                     if os.path.exists(p): 
-#                         os.remove(p)
-#                 except Exception as e:
-#                     print(f"⚠️ Could not remove temp file {p}: {e}")
-
-#             # Success message with details
-#             success_msg = f'Successfully loaded {len(uploaded)} files with {len(current_data)} records from {len(analyzer.branches)} branches!'
-#             if failed_files:
-#                 success_msg += f' Note: {len(failed_files)} files could not be processed.'
-            
-#             flash(success_msg, 'success')
-            
-#             # MODIFIED: Redirect directly to dashboard instead of upload page
-#             print(f"✅ Upload successful, redirecting to dashboard")
-#             return redirect(url_for('index'))
-
-#         except Exception as e:
-#             print(f"❌ Upload processing error: {e}")
-#             print(traceback.format_exc())
-            
-#             # Cleanup files on error
-#             for p in uploaded:
-#                 try:
-#                     if os.path.exists(p): 
-#                         os.remove(p)
-#                 except:
-#                     pass
-            
-#             error_msg = f'Error processing files: {str(e)}'
-#             if "No valid data" in str(e):
-#                 error_msg += ' Please check that your Excel files have the correct format and structure.'
-#             elif "permission" in str(e).lower():
-#                 error_msg += ' File permission error. Please ensure files are not open in other applications.'
-            
-#             flash(error_msg, 'danger')
-
-#     return render_template('upload.html')
-
-# FIXED app.py - Bagian upload route yang diperbaiki
+        return render_template('upload.html')
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_files():
@@ -522,71 +404,6 @@ def cogs_analysis():
         flash(f'Error loading COGS analysis: {e}', 'danger')
         return redirect(url_for('index'))
 
-@app.route('/debug-cogs')
-def debug_cogs():
-    """Debug COGS — ringkasan lengkap."""
-    global analyzer, current_data
-    if analyzer is None or not safe_df_check(current_data):
-        return "❌ No data available. Please upload files first."
-
-    try:
-        cogs = analyzer.get_cogs_per_product_per_branch(top_n_products=None)
-        if not safe_df_check(cogs): return "❌ No COGS data available."
-
-        info = {
-            'total_records': len(cogs),
-            'unique_branches': cogs['Branch'].nunique(),
-            'unique_menus': cogs['Menu'].nunique(),
-            'branches': cogs['Branch'].unique().tolist(),
-            'sample_data': cogs.head(10).to_dict('records'),
-            'columns': cogs.columns.tolist()
-        }
-        breakdown = {}
-        for br in info['branches']:
-            sub = cogs[cogs['Branch'] == br]
-            breakdown[br] = {
-                'total_records': len(sub),
-                'unique_menus': sub['Menu'].nunique(),
-                'sample_menus': sub['Menu'].unique()[:10].tolist()
-            }
-        info['branch_breakdown'] = breakdown
-
-        return render_template_string('''
-        <h1>🔍 Debug COGS Data (ALL)</h1>
-        <ul>
-          <li>Total records: {{ d.total_records }}</li>
-          <li>Unique branches: {{ d.unique_branches }}</li>
-          <li>Unique menus: {{ d.unique_menus }}</li>
-        </ul>
-        <h3>Branch Breakdown</h3>
-        {% for br, i in d.branch_breakdown.items() %}
-          <div style="border:1px solid #ccc;margin:6px 0;padding:8px;">
-            <b>{{ br }}</b><br>
-            Records: {{ i.total_records }} | Unique menus: {{ i.unique_menus }}<br>
-            Sample: {{ i.sample_menus|join(", ") }}{% if i.unique_menus > 10 %} ...{% endif %}
-          </div>
-        {% endfor %}
-        <h3>Sample (10)</h3>
-        <table border="1" style="border-collapse:collapse;">
-          <tr><th>Branch</th><th>Menu</th><th>COGS %</th><th>Total</th><th>Qty</th><th>Margin</th></tr>
-          {% for r in d.sample_data %}
-          <tr>
-            <td>{{ r.Branch }}</td>
-            <td>{{ r.Menu }}</td>
-            <td>{{ ('%.1f' % r['COGS Total (%)']) if r['COGS Total (%)'] is not none else '-' }}%</td>
-            <td>Rp {{ "{:,}".format(r.Total) if r.Total is not none else '0' }}</td>
-            <td>{{ r.Qty }}</td>
-            <td>Rp {{ "{:,}".format(r.Margin) if r.Margin is not none else '0' }}</td>
-          </tr>
-          {% endfor %}
-        </table>
-        <br><a href="{{ url_for('index') }}">← Back to Dashboard</a>
-        ''', d=info)
-
-    except Exception as e:
-        print(f"❌ Debug COGS error: {e}")
-        return f"❌ Error: {e}"
-
 @app.route('/chat', methods=['GET', 'POST'])
 def chat():
     global analyzer, chatbot
@@ -617,7 +434,8 @@ def debug_status():
         'templates_dir': os.path.abspath(app.template_folder),
         'templates_exist': os.path.exists(app.template_folder),
         'current_dir': os.getcwd(),
-        'python_path': sys.path[:3]
+        'python_path': sys.path[:3],
+        'vercel_deployment': True
     }
     if os.path.exists(app.template_folder):
         status['template_files'] = [f for f in os.listdir(app.template_folder) if f.endswith('.html')]
@@ -763,16 +581,7 @@ def create_cogs_analysis_charts(cogs, branch_cogs):
     try:
         if not (safe_df_check(cogs) and safe_df_check(branch_cogs)): return charts
 
-        # Heatmap top 15 produk by revenue (untuk keterbacaan)
-        top15 = cogs.groupby('Menu')['Total'].sum().nlargest(15).index
-        filt = cogs[cogs['Menu'].isin(top15)]
-        if safe_df_check(filt):
-            piv = filt.pivot(index='Menu', columns='Branch', values='COGS Total (%)').fillna(0)
-            fig_heat = px.imshow(piv, title='🔥 COGS % per Produk per Cabang (Top 15)', aspect='auto',
-                                 color_continuous_scale='RdYlGn_r', labels={'color': 'COGS (%)'})
-            fig_heat.update_layout(height=600)
-            charts['cogs_heatmap'] = json.dumps(fig_heat, cls=plotly.utils.PlotlyJSONEncoder)
-
+        # Branch efficiency only (skip complex heatmap for Vercel)
         ordered = branch_cogs.sort_values('COGS_Efficiency', ascending=False)
         fig_eff = go.Figure([go.Bar(
             x=list(range(len(ordered))),
@@ -788,25 +597,6 @@ def create_cogs_analysis_charts(cogs, branch_cogs):
         )
         charts['branch_efficiency'] = json.dumps(fig_eff, cls=plotly.utils.PlotlyJSONEncoder)
 
-        stats = cogs.groupby('Menu')['COGS Total (%)'].agg(['mean','std','count']).reset_index()
-        stats = stats[(stats['count'] > 1) & (stats['std'] > 0) & (stats['mean'] > 0)].copy()
-        if safe_df_check(stats):
-            stats['CV'] = stats['std'] / stats['mean']
-            top_cv = stats.sort_values('CV', ascending=False).head(15)
-            fig_cv = go.Figure([go.Bar(
-                x=list(range(len(top_cv))),
-                y=top_cv['CV'].tolist(),
-                text=[f'{x:.2f}' for x in top_cv['CV']],
-                textposition='outside',
-                marker_color='rgba(220,20,60,0.8)'
-            )])
-            fig_cv.update_layout(
-                title='📊 Top 15 Produk dengan Variasi COGS Tertinggi',
-                xaxis=dict(tickmode='array', tickvals=list(range(len(top_cv))), ticktext=top_cv['Menu'].tolist(), tickangle=-45),
-                yaxis_title='Coefficient of Variation', height=600, margin=dict(l=20,r=20,t=40,b=150), showlegend=False
-            )
-            charts['cogs_variance'] = json.dumps(fig_cv, cls=plotly.utils.PlotlyJSONEncoder)
-
     except Exception as e:
         print(f"❌ COGS charts error: {e}")
         print(traceback.format_exc())
@@ -816,29 +606,6 @@ def create_time_charts_all_branches(time_analysis):
     """Time analysis. Branch trends: SEMUA cabang, hover single-trace only."""
     charts = {}
     try:
-        # Daily pattern (opsional)
-        if time_analysis.get('daily_pattern', {}).get('length', 0) > 0:
-            daily = time_analysis['daily_pattern']['data']
-            agg = {}
-            for it in daily:
-                d = it.get('Day_of_Week', 'Unknown')
-                r = it.get('Total_Revenue', 0) or 0
-                agg[d] = agg.get(d, 0) + r
-            if agg:
-                days = list(agg.keys())
-                vals = list(agg.values())
-                fig_daily = go.Figure([go.Bar(
-                    x=days, y=vals,
-                    text=[f'Rp {x:,.0f}' for x in vals], textposition='outside',
-                    marker_color='rgba(0,139,139,0.8)'
-                )])
-                fig_daily.update_layout(
-                    title='📊 Penjualan per Hari dalam Seminggu',
-                    xaxis_title='Hari', yaxis_title='Revenue (Rp)',
-                    height=400, showlegend=False
-                )
-                charts['daily_pattern'] = json.dumps(fig_daily, cls=plotly.utils.PlotlyJSONEncoder)
-
         # Branch trends (ALL branches) — HOVER PER TRACE
         if time_analysis.get('daily_trend', {}).get('length', 0) > 0:
             trend = time_analysis['daily_trend']['data']
@@ -866,14 +633,12 @@ def create_time_charts_all_branches(time_analysis):
                     hovertemplate="<b>%{x}</b><br>Branch: " + br + "<br>Revenue: Rp %{y:,.0f}<extra></extra>"
                 ))
 
-            # ✅ HANYA tooltip untuk trace yang di-pointer
             fig_trends.update_layout(
                 title='📅 Branch Sales Trends Over Time (All Branches)',
                 xaxis_title='Tanggal',
                 yaxis_title='Revenue (Rp)',
                 height=450,
-                hovermode='closest',  # <-- perbaikan utama (bukan 'x unified')
-                # Garis panduan nyaman saat hover (tanpa tooltip gabungan)
+                hovermode='closest',
                 xaxis=dict(
                     showspikes=True, spikemode='across', spikesnap='cursor', spikethickness=1
                 ),
@@ -884,29 +649,6 @@ def create_time_charts_all_branches(time_analysis):
                 uirevision="keep-zoom"
             )
             charts['branch_trends'] = json.dumps(fig_trends, cls=plotly.utils.PlotlyJSONEncoder)
-
-        # Monthly (opsional)
-        if time_analysis.get('monthly', {}).get('length', 0) > 0:
-            monthly = time_analysis['monthly']['data']
-            agg = {}
-            for it in monthly:
-                m = it.get('Month', 0) or 0
-                r = it.get('Total', 0) or 0
-                agg[m] = agg.get(m, 0) + r
-            if agg:
-                months = sorted(agg.keys())
-                vals = [agg[m] for m in months]
-                fig_mon = go.Figure([go.Bar(
-                    x=[f'Month {int(m)}' for m in months],
-                    y=vals, text=[f'Rp {x:,.0f}' for x in vals], textposition='outside',
-                    marker_color='rgba(255,165,0,0.8)'
-                )])
-                fig_mon.update_layout(
-                    title='📊 Total Penjualan per Bulan',
-                    xaxis_title='Bulan', yaxis_title='Revenue (Rp)',
-                    height=400, showlegend=False
-                )
-                charts['monthly_comparison'] = json.dumps(fig_mon, cls=plotly.utils.PlotlyJSONEncoder)
 
         # Placeholder jika semua kosong
         if not charts:
@@ -941,7 +683,7 @@ def internal_error(error):
 @app.errorhandler(413)
 def too_large(error):
     print("❌ 413: File too large")
-    return render_template('error.html', error_code=413, error_message="File terlalu besar. Maksimal 50MB per file"), 413
+    return render_template('error.html', error_code=413, error_message="File terlalu besar. Maksimal 10MB per file"), 413
 
 @app.errorhandler(Exception)
 def handle_exception(e):
@@ -951,23 +693,14 @@ def handle_exception(e):
         return f"Template not found: {str(e)}. Check templates folder.", 500
     return f"An error occurred: {str(e)}", 500
 
-# ===== Main =====
+# ===== Vercel Entry Point =====
+# For Vercel deployment, the app variable needs to be available at module level
 if __name__ == '__main__':
-    print("🚀 Starting Flask Multi-Branch Analytics...")
+    print("🚀 Starting Flask Multi-Branch Analytics for Vercel...")
     print(f"📁 Templates: {app.template_folder}")
     print(f"📁 Static:    {app.static_folder}")
-    print(f"🔧 Debug:     {app.config['DEBUG']}")
-
-    required = [
-        'base.html','dashboard.html','upload.html',
-        'branch_comparison.html','product_analysis.html',
-        'sales_by_time.html','cogs_analysis.html','chat.html','error.html'
-    ]
-    missing = [t for t in required if not os.path.exists(os.path.join(app.template_folder, t))]
-    if missing:
-        print(f"❌ Missing templates: {missing}")
-    else:
-        print("✅ All required templates found")
-
-    print("🌐 http://127.0.0.1:5000  |  🔍 /debug for status")
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    print(f"🔧 Debug:     {app.config.get('DEBUG', False)}")
+    print("🌐 Running in Vercel serverless mode")
+else:
+    # This runs when imported by Vercel
+    print("🚀 Flask Multi-Branch Analytics loaded for Vercel deployment")
