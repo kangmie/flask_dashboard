@@ -695,12 +695,23 @@ def handle_exception(e):
 
 # ===== Vercel Entry Point =====
 # For Vercel deployment, the app variable needs to be available at module level
+# if __name__ == '__main__':
+#     print("🚀 Starting Flask Multi-Branch Analytics for Vercel...")
+#     print(f"📁 Templates: {app.template_folder}")
+#     print(f"📁 Static:    {app.static_folder}")
+#     print(f"🔧 Debug:     {app.config.get('DEBUG', False)}")
+#     print("🌐 Running in Vercel serverless mode")
+# else:
+#     # This runs when imported by Vercel
+#     print("🚀 Flask Multi-Branch Analytics loaded for Vercel deployment")
+
 if __name__ == '__main__':
-    print("🚀 Starting Flask Multi-Branch Analytics for Vercel...")
+    print("🚀 Starting Flask Multi-Branch Analytics for Render...")
     print(f"📁 Templates: {app.template_folder}")
     print(f"📁 Static:    {app.static_folder}")
     print(f"🔧 Debug:     {app.config.get('DEBUG', False)}")
-    print("🌐 Running in Vercel serverless mode")
-else:
-    # This runs when imported by Vercel
-    print("🚀 Flask Multi-Branch Analytics loaded for Vercel deployment")
+    print("🌐 Running in Render production mode")
+    
+    # Render configuration
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
