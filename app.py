@@ -94,7 +94,7 @@ def index():
     print("🔍 Dashboard route accessed")
 
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     try:
@@ -120,76 +120,278 @@ def index():
     except Exception as e:
         print(f"❌ Error in dashboard: {e}")
         print(traceback.format_exc())
-        flash(f'Error loading dashboard: {e}')
+        flash(f'Error loading dashboard: {e}', 'danger')
         return redirect(url_for('upload_files'))
+
+# @app.route('/upload', methods=['GET', 'POST'])
+# def upload_files():
+#     print("📁 Upload route accessed")
+#     if request.method == 'POST':
+#         if 'files[]' not in request.files:
+#             flash('No files selected', 'warning')
+#             return redirect(request.url)
+
+#         files = request.files.getlist('files[]')
+#         if not files or files[0].filename == '':
+#             flash('No files selected', 'warning')
+#             return redirect(request.url)
+
+#         uploaded = []
+#         failed_files = []
+        
+#         for f in files:
+#             if f and allowed_file(f.filename):
+#                 try:
+#                     name = secure_filename(f.filename)
+#                     path = os.path.join(app.config['UPLOAD_FOLDER'], name)
+#                     f.save(path)
+#                     uploaded.append(path)
+#                     print(f"📄 Saved: {name}")
+#                 except Exception as e:
+#                     print(f"❌ Failed to save {f.filename}: {e}")
+#                     failed_files.append(f.filename)
+#             else:
+#                 failed_files.append(f.filename if hasattr(f, 'filename') else 'Unknown file')
+
+#         if not uploaded:
+#             error_msg = 'No valid Excel files found'
+#             if failed_files:
+#                 error_msg += f'. Failed files: {", ".join(failed_files[:3])}'
+#                 if len(failed_files) > 3:
+#                     error_msg += f' and {len(failed_files) - 3} more'
+#             flash(error_msg, 'danger')
+#             return redirect(request.url)
+
+#         try:
+#             global analyzer, current_data, chatbot
+#             if MultiBranchSalesAnalyzer is None:
+#                 flash('Analyzer module not available. Check imports.', 'danger')
+#                 return redirect(url_for('upload_files'))
+
+#             analyzer = MultiBranchSalesAnalyzer()
+
+#             buffers = []
+#             for p in uploaded:
+#                 try:
+#                     with open(p, 'rb') as fh:
+#                         b = io.BytesIO(fh.read())
+#                         b.name = os.path.basename(p)
+#                         buffers.append(b)
+#                 except Exception as e:
+#                     print(f"❌ Error reading file {p}: {e}")
+#                     continue
+
+#             if not buffers:
+#                 flash('No files could be processed successfully.', 'danger')
+#                 return redirect(url_for('upload_files'))
+
+#             current_data = analyzer.load_multiple_files(buffers)
+#             if not safe_df_check(current_data):
+#                 flash('No valid data found in uploaded files.', 'danger')
+#                 return redirect(url_for('upload_files'))
+
+#             # Initialize chatbot (optional)
+#             try:
+#                 chatbot = GroqChatbot() if GroqChatbot else None
+#                 if chatbot: 
+#                     print("✅ Chatbot initialized")
+#                 else:
+#                     print("⚠️ Chatbot not available (GroqChatbot not imported)")
+#             except Exception as e:
+#                 print(f"⚠️ Chatbot init failed: {e}")
+#                 chatbot = None
+
+#             # Cleanup uploaded files
+#             for p in uploaded:
+#                 try:
+#                     if os.path.exists(p): 
+#                         os.remove(p)
+#                 except Exception as e:
+#                     print(f"⚠️ Could not remove temp file {p}: {e}")
+
+#             # Success message with details
+#             success_msg = f'Successfully loaded {len(uploaded)} files with {len(current_data)} records from {len(analyzer.branches)} branches!'
+#             if failed_files:
+#                 success_msg += f' Note: {len(failed_files)} files could not be processed.'
+            
+#             flash(success_msg, 'success')
+            
+#             # MODIFIED: Redirect directly to dashboard instead of upload page
+#             print(f"✅ Upload successful, redirecting to dashboard")
+#             return redirect(url_for('index'))
+
+#         except Exception as e:
+#             print(f"❌ Upload processing error: {e}")
+#             print(traceback.format_exc())
+            
+#             # Cleanup files on error
+#             for p in uploaded:
+#                 try:
+#                     if os.path.exists(p): 
+#                         os.remove(p)
+#                 except:
+#                     pass
+            
+#             error_msg = f'Error processing files: {str(e)}'
+#             if "No valid data" in str(e):
+#                 error_msg += ' Please check that your Excel files have the correct format and structure.'
+#             elif "permission" in str(e).lower():
+#                 error_msg += ' File permission error. Please ensure files are not open in other applications.'
+            
+#             flash(error_msg, 'danger')
+
+#     return render_template('upload.html')
+
+# FIXED app.py - Bagian upload route yang diperbaiki
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_files():
     print("📁 Upload route accessed")
     if request.method == 'POST':
+        # Check if this is an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
         if 'files[]' not in request.files:
-            flash('No files selected')
+            if is_ajax:
+                return jsonify({'success': False, 'error': 'No files selected'}), 400
+            flash('No files selected', 'warning')
             return redirect(request.url)
 
         files = request.files.getlist('files[]')
         if not files or files[0].filename == '':
-            flash('No files selected')
+            if is_ajax:
+                return jsonify({'success': False, 'error': 'No files selected'}), 400
+            flash('No files selected', 'warning')
             return redirect(request.url)
 
         uploaded = []
+        failed_files = []
+        
         for f in files:
             if f and allowed_file(f.filename):
-                name = secure_filename(f.filename)
-                path = os.path.join(app.config['UPLOAD_FOLDER'], name)
-                f.save(path)
-                uploaded.append(path)
-                print(f"📄 Saved: {name}")
+                try:
+                    name = secure_filename(f.filename)
+                    path = os.path.join(app.config['UPLOAD_FOLDER'], name)
+                    f.save(path)
+                    uploaded.append(path)
+                    print(f"📄 Saved: {name}")
+                except Exception as e:
+                    print(f"❌ Failed to save {f.filename}: {e}")
+                    failed_files.append(f.filename)
+            else:
+                failed_files.append(f.filename if hasattr(f, 'filename') else 'Unknown file')
 
         if not uploaded:
-            flash('No valid Excel files found')
+            error_msg = 'No valid Excel files found'
+            if failed_files:
+                error_msg += f'. Failed files: {", ".join(failed_files[:3])}'
+                if len(failed_files) > 3:
+                    error_msg += f' and {len(failed_files) - 3} more'
+            
+            if is_ajax:
+                return jsonify({'success': False, 'error': error_msg}), 400
+            flash(error_msg, 'danger')
             return redirect(request.url)
 
         try:
             global analyzer, current_data, chatbot
             if MultiBranchSalesAnalyzer is None:
-                flash('Analyzer module not available. Check imports.')
+                error_msg = 'Analyzer module not available. Check imports.'
+                if is_ajax:
+                    return jsonify({'success': False, 'error': error_msg}), 500
+                flash(error_msg, 'danger')
                 return redirect(url_for('upload_files'))
 
             analyzer = MultiBranchSalesAnalyzer()
 
             buffers = []
             for p in uploaded:
-                with open(p, 'rb') as fh:
-                    b = io.BytesIO(fh.read())
-                    b.name = os.path.basename(p)
-                    buffers.append(b)
+                try:
+                    with open(p, 'rb') as fh:
+                        b = io.BytesIO(fh.read())
+                        b.name = os.path.basename(p)
+                        buffers.append(b)
+                except Exception as e:
+                    print(f"❌ Error reading file {p}: {e}")
+                    continue
+
+            if not buffers:
+                error_msg = 'No files could be processed successfully.'
+                if is_ajax:
+                    return jsonify({'success': False, 'error': error_msg}), 400
+                flash(error_msg, 'danger')
+                return redirect(url_for('upload_files'))
 
             current_data = analyzer.load_multiple_files(buffers)
             if not safe_df_check(current_data):
-                flash('No valid data found in uploaded files.')
+                error_msg = 'No valid data found in uploaded files.'
+                if is_ajax:
+                    return jsonify({'success': False, 'error': error_msg}), 400
+                flash(error_msg, 'danger')
                 return redirect(url_for('upload_files'))
 
-            # init chatbot (optional)
+            # Initialize chatbot (optional)
             try:
                 chatbot = GroqChatbot() if GroqChatbot else None
-                if chatbot: print("✅ Chatbot initialized")
+                if chatbot: 
+                    print("✅ Chatbot initialized")
+                else:
+                    print("⚠️ Chatbot not available (GroqChatbot not imported)")
             except Exception as e:
                 print(f"⚠️ Chatbot init failed: {e}")
                 chatbot = None
 
-            # cleanup
+            # Cleanup uploaded files
             for p in uploaded:
-                if os.path.exists(p): os.remove(p)
+                try:
+                    if os.path.exists(p): 
+                        os.remove(p)
+                except Exception as e:
+                    print(f"⚠️ Could not remove temp file {p}: {e}")
 
-            flash(f'Successfully loaded {len(uploaded)} files with {len(current_data)} records!')
-            return redirect(url_for('index'))
+            # Success message with details
+            success_msg = f'Successfully loaded {len(uploaded)} files with {len(current_data)} records from {len(analyzer.branches)} branches!'
+            if failed_files:
+                success_msg += f' Note: {len(failed_files)} files could not be processed.'
+            
+            print(f"✅ Upload successful: {success_msg}")
+            
+            # HANDLE AJAX vs REGULAR REQUEST DIFFERENTLY
+            if is_ajax:
+                # For AJAX requests, return JSON with redirect URL
+                return jsonify({
+                    'success': True, 
+                    'message': success_msg,
+                    'redirect_url': url_for('index'),
+                    'branches_loaded': len(analyzer.branches),
+                    'records_loaded': len(current_data)
+                })
+            else:
+                # For regular form submission, do server-side redirect
+                flash(success_msg, 'success')
+                return redirect(url_for('index'))
 
         except Exception as e:
             print(f"❌ Upload processing error: {e}")
             print(traceback.format_exc())
+            
+            # Cleanup files on error
             for p in uploaded:
-                if os.path.exists(p): os.remove(p)
-            flash(f'Error processing files: {e}')
+                try:
+                    if os.path.exists(p): 
+                        os.remove(p)
+                except:
+                    pass
+            
+            error_msg = f'Error processing files: {str(e)}'
+            if "No valid data" in str(e):
+                error_msg += ' Please check that your Excel files have the correct format and structure.'
+            elif "permission" in str(e).lower():
+                error_msg += ' File permission error. Please ensure files are not open in other applications.'
+            
+            if is_ajax:
+                return jsonify({'success': False, 'error': error_msg}), 500
+            flash(error_msg, 'danger')
 
     return render_template('upload.html')
 
@@ -197,7 +399,7 @@ def upload_files():
 def branch_comparison():
     global analyzer, current_data
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     try:
@@ -207,7 +409,7 @@ def branch_comparison():
     except Exception as e:
         print(f"❌ Branch comparison error: {e}")
         print(traceback.format_exc())
-        flash(f'Error loading branch comparison: {e}')
+        flash(f'Error loading branch comparison: {e}', 'danger')
         return redirect(url_for('index'))
 
 @app.route('/product-analysis')
@@ -215,13 +417,13 @@ def product_analysis():
     """Branch-first. Detail produk di frontend hanya Revenue & Qty."""
     global analyzer, current_data
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     try:
         df = analyzer.get_product_comparison_by_branch(top_n_products=None)
         if not safe_df_check(df):
-            flash('No product data available for analysis.')
+            flash('No product data available for analysis.', 'warning')
             return redirect(url_for('index'))
 
         top_products = (
@@ -238,7 +440,7 @@ def product_analysis():
     except Exception as e:
         print(f"❌ Product analysis error: {e}")
         print(traceback.format_exc())
-        flash(f'Error loading product analysis: {e}')
+        flash(f'Error loading product analysis: {e}', 'danger')
         return redirect(url_for('index'))
 
 @app.route('/sales-by-time')
@@ -246,7 +448,7 @@ def sales_by_time():
     """Branch Trends: ALL branches, tooltip hanya untuk trace yang di-pointer (hovermode='closest')."""
     global analyzer, current_data
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     try:
@@ -299,13 +501,13 @@ def cogs_analysis():
     """COGS analysis: ALL products (no top limit)."""
     global analyzer, current_data
     if analyzer is None or not safe_df_check(current_data):
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     try:
         cogs = analyzer.get_cogs_per_product_per_branch(top_n_products=None)
         if not safe_df_check(cogs):
-            flash('No COGS data available for analysis.')
+            flash('No COGS data available for analysis.', 'warning')
             return redirect(url_for('index'))
 
         branch_cogs = cogs.groupby('Branch')['COGS Total (%)'].mean().reset_index()
@@ -317,7 +519,7 @@ def cogs_analysis():
     except Exception as e:
         print(f"❌ COGS analysis error: {e}")
         print(traceback.format_exc())
-        flash(f'Error loading COGS analysis: {e}')
+        flash(f'Error loading COGS analysis: {e}', 'danger')
         return redirect(url_for('index'))
 
 @app.route('/debug-cogs')
@@ -378,6 +580,7 @@ def debug_cogs():
           </tr>
           {% endfor %}
         </table>
+        <br><a href="{{ url_for('index') }}">← Back to Dashboard</a>
         ''', d=info)
 
     except Exception as e:
@@ -388,7 +591,7 @@ def debug_cogs():
 def chat():
     global analyzer, chatbot
     if analyzer is None:
-        flash('No data available. Please upload files first.')
+        flash('No data available. Please upload files first.', 'warning')
         return redirect(url_for('upload_files'))
 
     if request.method == 'POST':
@@ -435,7 +638,7 @@ def create_dashboard_charts():
         df = analyzer.get_branch_revenue_comparison()
         if not safe_df_check(df): return charts
 
-        # Revenue bar (Top 10 utk kerapian di dashboard)
+        # Revenue bar (Top 10 untuk kerapian di dashboard)
         top = df.sort_values('Total_Revenue', ascending=False).head(10).copy()
         fig_revenue = go.Figure([go.Bar(
             x=list(range(len(top))),
